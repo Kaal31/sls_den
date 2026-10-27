@@ -5,6 +5,10 @@ on:
     branches: [sls-manifest-integration]
   workflow_dispatch:
 
+concurrency:
+  group: sls-den-macos-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
