@@ -1,0 +1,43 @@
+name: SLS Den macOS host validation
+
+on:
+  push:
+    branches: [sls-manifest-integration]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  macos-host:
+    runs-on: macos-15
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Configure toolchain
+        run: |
+          brew install cmake ninja || true
+          clang++ --version
+          cmake --version
+      - name: Prepare host network dependencies
+        run: scripts/network-deps/prepare-host-deps.sh
+      - name: Prepare fonts and configure host build
+        run: scripts/build-homebrew.sh --prepare-only
+      - name: Configure
+        run: cmake --preset homebrew-host
+      - name: Build SLS test targets and simulator
+        run: |
+          cmake --build --preset homebrew-host --target sls_manifest_metadata_test sls_source_catalog_test sls_source_resolver_test sls_authorized_depot_plan_test homebrew_simulation_test playden-homebrew --parallel 4
+      - name: Run SLS tests and existing Playden simulation test
+        run: |
+          ctest --test-dir build/homebrew-host --output-on-failure -R '^(sls_|homebrew_simulation)'
+      - name: Upload CTest logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sls-den-macos-testlogs
+          path: |
+            build/homebrew-host/Testing/Temporary/
+          if-no-files-found: ignore
