@@ -18,7 +18,7 @@ jobs:
           submodules: recursive
       - name: Configure toolchain
         run: |
-          brew install cmake ninja || true
+          brew install cmake ninja sdl2 pkg-config
           clang++ --version
           cmake --version
       - name: Prepare host network dependencies
