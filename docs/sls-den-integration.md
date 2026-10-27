@@ -26,3 +26,12 @@
 3. Add UI for inspecting available source metadata and existing entitled depots.
 4. Integrate only with Playden's supported authorized download path.
 5. Run full host test suite, PS5 cross-compile, and finally launch acceptance tests on a jailbroken PS5.
+
+## Source resolution module (latest)
+- `src/sls/source_resolver.{h,cpp}`: ordered source fallback using a host-provided fetch callback.
+- Payloads are capped at 1 MiB and parsed as *data*, never executed as Lua.
+- API-key sources are excluded until authenticated transport is designed.
+- Does not currently implement live HTTPS, archive unpacking, or endpoint-specific provider authentication.
+- `tests/sls_source_resolver_test.cpp` covers first-provider invalid metadata, fallback, network failure and oversized responses.
+- The new test is registered in CMake but has not been executed in a full Playden build environment.
+- Playden's Steam downloader, DRM handling, permissions and launch behavior are unchanged.
