@@ -18,6 +18,7 @@ set(PLAYDEN_PS5_TITLE_ID "" CACHE STRING "Explicit PS5 title id (required for PS
 file(READ "${CMAKE_SOURCE_DIR}/dependencies.lock.json" playden_dependency_lock)
 include(CTest)
 include(cmake/PlaydenCore.cmake)
+include(cmake/SlsManifest.cmake)
 include(cmake/SteamBackend.cmake)
 playden_register_steam_backend_tests()
 include(cmake/ProsperoRuntime.cmake)
