@@ -1,9 +1,28 @@
-# SLS Den manifest integration
+# SLS Den — integration status
 
-This branch introduces an independent C++17 parser for declarative LuaTools-style metadata.
+## Implemented on sls-manifest-integration
+- Native, data-only LuaTools metadata parser (`src/sls/manifest_metadata.*`).
+- Configurable HTTPS source registry and URL validation (`src/sls/source_catalog.*`).
+- Entitlement-preserving depot selection planner (`src/sls/authorized_depot_plan.h`).
+- Three host CTest targets registered through `cmake/SlsManifest.cmake`, included in the top-level CMake build.
 
-- Reads `addappid(depot_id, ...)` and `setManifestid(depot_id, "gid")`.
-- No Lua execution, unlocker installation, Steam client hooks, ownership changes, or changes to download authorization.
-- The parser does not yet feed Playden's downloader or library UI. Steam licenses and depot checks are unchanged.
-- Build registration: `cmake/SlsManifest.cmake`; host test: `sls_manifest_metadata`.
-- PS5 hardware behavior has not been tested.
+## Boundaries
+- No Lua execution or Steam client hooks.
+- No Moon binary dependency.
+- Sources are not fetched yet: the registry merely validates configured endpoint templates. Provider endpoints, authentication and real network behavior remain unverified.
+- Depot planning intersects requested depot IDs with **already-authorized** Steam `DepotInfo` records; manifest GIDs from third parties are not used for installation.
+- The existing `SteamInstallRunner`, `SelectDepots`, `DepotInstaller`, authentication and game launching remain unchanged.
+- No Playden-native UI work is done yet.
+
+## Validation
+- The separately packaged early SLS manifest prototype built under Linux GCC and its CTest smoke test passed.
+- The new integration-branch CTest targets have **not yet been run** in a full Playden checkout.
+- No macOS graphical simulation, PS5 SDK build, or hardware launch test has been run.
+- A Playden console launch after stages 3–5 requires installed PS5 hardware and compatible firmware. A host simulation cannot substitute for this.
+
+## Next
+1. Confirm source API schemas and integrate Playden's HTTP client with fixture-backed source tests.
+2. Complete validation of Lua manifest syntax using fixtures, never executing source code.
+3. Add UI for inspecting available source metadata and existing entitled depots.
+4. Integrate only with Playden's supported authorized download path.
+5. Run full host test suite, PS5 cross-compile, and finally launch acceptance tests on a jailbroken PS5.
