@@ -29,7 +29,7 @@ jobs:
         run: cmake --preset homebrew-host
       - name: Build SLS test targets and simulator
         run: |
-          cmake --build --preset homebrew-host --target sls_manifest_metadata_test sls_source_catalog_test sls_source_resolver_test sls_authorized_depot_plan_test homebrew_simulation_test playden-homebrew --parallel 4
+          cmake --build --preset homebrew-host --target sls_manifest_metadata_test sls_source_catalog_test sls_source_resolver_test sls_authorized_depot_plan_test sls_source_http homebrew_simulation_test playden-homebrew --parallel 4
       - name: Run SLS tests and existing Playden simulation test
         run: |
           ctest --test-dir build/homebrew-host --output-on-failure -R '^(sls_|homebrew_simulation)'
