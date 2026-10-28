@@ -394,7 +394,7 @@ add_custom_target(playden_homebrew_assets ALL
 
 add_library(playden_mock_console STATIC src/homebrew/mock_console.cpp
     src/platform/ps5/title_registry.cpp src/platform/ps5/title_runtime.cpp)
-target_link_libraries(playden_mock_console PUBLIC playden_homebrew_model playden_steam_protocol)
+target_link_libraries(playden_mock_console PUBLIC playden_homebrew_model playden_steam_protocol sls_manifest)
 target_compile_features(playden_mock_console PUBLIC cxx_std_20)
 add_executable(playden-homebrew "${CMAKE_SOURCE_DIR}/src/homebrew/host.cpp")
 target_compile_features(playden-homebrew PRIVATE cxx_std_20)
@@ -417,6 +417,10 @@ if(BUILD_TESTING)
     add_executable(mock_console_test tests/mock_console_test.cpp)
     target_link_libraries(mock_console_test PRIVATE playden_mock_console)
     add_test(NAME mock_console COMMAND mock_console_test "${CMAKE_SOURCE_DIR}/fixtures/mock-console/steam.json")
+    add_test(NAME mock_console_desktop COMMAND playden-homebrew --mock-console --headless
+        --replay "${CMAKE_SOURCE_DIR}/fixtures/mock-console/install-play.replay"
+        --snapshot "${CMAKE_BINARY_DIR}/mock-console-state.json"
+        --capture "${CMAKE_BINARY_DIR}/mock-console.png")
     add_executable(homebrew_focus_motion_test "${CMAKE_SOURCE_DIR}/tests/homebrew_focus_motion_test.cpp")
     target_compile_features(homebrew_focus_motion_test PRIVATE cxx_std_20)
     target_include_directories(homebrew_focus_motion_test PRIVATE "${CMAKE_SOURCE_DIR}/src")

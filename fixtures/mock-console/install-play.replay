@@ -1,0 +1,9 @@
+action details:220
+action focus:details-mock-source
+action cross
+action focus:details-install
+action cross
+action focus:install-confirm
+action cross
+action focus:details-play
+action cross

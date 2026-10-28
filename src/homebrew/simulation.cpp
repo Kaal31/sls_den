@@ -799,6 +799,12 @@ void Simulation::reset_default_state() {
     captured_preferences_ = {};
 }
 
+void Simulation::SetMockSourceStatus(std::string status) {
+    if (!state_.mock_console) return;
+    state_.mock_source_status = std::move(status);
+    rebuild_view();
+}
+
 void Simulation::SetControllerConnected(bool connected) {
     const bool changed = state_.controller_connected != connected;
     state_.controller_connected = connected;
@@ -4728,6 +4734,12 @@ void Simulation::rebuild_view() {
         const Job* copying = imported && in_place ? import_copy_job(game->id) : nullptr;
         // Live installations are only finished installs; their size may be unknown on an absent drive.
         const bool installed = installation && (live() || installation->installed_bytes > 0);
+        if (state_.mock_console) {
+            static const char* names[] = {"Unavailable fixture", "Corrupt fixture", "Valid fixture"};
+            auto& source = row("details-mock-source", RowKind::Action, "Manifest source", "mock-source-next");
+            source.value = names[state_.mock_source];
+            source.subtitle = state_.mock_source_status;
+        }
         if (!live()) {
             auto& primary = row(installed ? "details-play" : "details-install", RowKind::Action,
                                 installed ? (installation->runtime_ready ? "Play" : "Open Settings") : "Install",
@@ -6380,6 +6392,8 @@ void Simulation::activate() {
         state_.navigation.selected_game_id = selected.game_id;
         state_.navigation.route = Route::Details;
         details_primary_pending_ = live(); state_.navigation.focus_key = live() ? "details-favorite" : (is_installed(state_, selected.game_id) ? "details-play" : "details-install");
+    } else if (state_.mock_console && action_name == "mock-source-next") {
+        state_.mock_source = (state_.mock_source + 1) % 3;
     } else if (action_name == "favorite") {
         if (state_.library.favorites.contains(state_.navigation.selected_game_id)) state_.library.favorites.erase(state_.navigation.selected_game_id);
         else state_.library.favorites.insert(state_.navigation.selected_game_id);
@@ -8266,6 +8280,17 @@ std::string Simulation::snapshot() const {
         output << "{\"id\":\"" << json::escape(volume.id) << "\",\"used\":" << volume.used_bytes
                << ",\"reserved\":" << volume.reserved_bytes << ",\"capacity\":" << volume.capacity_bytes
                << ",\"available\":" << (volume.available ? "true" : "false") << '}';
+    }
+    if (state_.mock_console) {
+        output << "],\"mock_console\":true,\"hardware_runtime_tested\":false,\"mock_runtime\":[";
+        bool first_runtime = true;
+        for (const auto& [id, game] : state_.runtime_games) {
+            if (!first_runtime) output << ',';
+            first_runtime = false;
+            output << "{\"game_id\":" << id << ",\"ready\":" << (game.ready ? "true" : "false")
+                   << ",\"play_status\":\"" << json::escape(game.play_status)
+                   << "\",\"detail\":\"" << json::escape(game.play_detail) << "\"}";
+        }
     }
     output << "],\"game_settings\":[";
     first = true;

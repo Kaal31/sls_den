@@ -3,6 +3,8 @@
 #pragma once
 #include "homebrew/simulation.hpp"
 #include "platform/ps5/title_registry.h"
+#include "sls/source_resolver.h"
+#include "sls/authorized_depot_plan.h"
 #include <memory>
 
 namespace playden::homebrew {
@@ -26,11 +28,20 @@ public:
     bool registration_pending = false;
     bool title_collision = false;
     std::uint64_t free_bytes = 8ULL * 1024 * 1024 * 1024;
+    std::vector<sls::Source> sources;
+    std::map<std::string, std::optional<std::string>> source_responses;
+    std::vector<steam::DepotInfo> authorized_depots; // synthetic Steam answer, independent of manifest data
+    sls::Resolution last_resolution;
+    sls::DepotPlan last_plan;
+    std::size_t selected_source = 0;
+    std::optional<std::size_t> interrupt_after_bytes;
+    std::size_t resumed_bytes = 0;
 private:
     struct Fixture { GameSummary game; std::string executable; std::string payload; };
     std::filesystem::path root_;
     std::vector<Fixture> fixtures_;
     std::vector<LiveInstalledGame> installed_;
+    std::vector<LiveInstallJob> jobs_;
     std::map<GameId, LiveRuntimeGame> runtime_;
     std::map<std::string, bool> titles_;
     std::unique_ptr<ps5::TitleRegistry> registry_;

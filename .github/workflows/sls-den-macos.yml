@@ -44,4 +44,7 @@ jobs:
           name: sls-den-macos-testlogs
           path: |
             build/homebrew-host/Testing/Temporary/
+            build/homebrew-host/mock-console-state.json
+            build/homebrew-host/mock-console.png
+            build/homebrew-host/mock-console.png.json
           if-no-files-found: ignore

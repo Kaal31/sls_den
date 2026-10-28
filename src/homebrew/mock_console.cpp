@@ -32,6 +32,17 @@ std::string Text(const json::Value& value, const char* key) {
 bool Fail(std::string* reason, const char* text) { if (reason) *reason = text; return false; }
 }
 MockConsole::MockConsole(const fs::path& fixture) {
+    sources = {{"offline", "Unavailable fixture", "https://offline.invalid/{appid}.lua"},
+               {"corrupt", "Corrupt fixture", "https://corrupt.invalid/{appid}.lua"},
+               {"valid", "Valid fixture", "https://valid.invalid/{appid}.lua"}};
+    source_responses["offline"] = std::nullopt;
+    source_responses["corrupt"] = Read(fixture.parent_path() / "corrupt.lua");
+    source_responses["valid"] = Read(fixture.parent_path() / "valid.lua");
+    steam::DepotInfo entitled;
+    entitled.id = 221;
+    entitled.manifest_gid = 123456789;
+    entitled.os_list = "windows";
+    authorized_depots.push_back(entitled);
     const auto parsed = json::Parser(Read(fixture)).parse();
     const auto* response = parsed ? parsed->get("response") : nullptr;
     const auto* games = response ? response->get("games") : nullptr;
@@ -88,6 +99,8 @@ std::string MockConsole::Title(GameId id) const { return "FAKE78" + std::to_stri
 std::optional<std::string> MockConsole::Transport(const std::string& route, const std::string& body) {
     if (!registration_available) return std::nullopt;
     if (route == "/api/v1/games") {
+        if (!registration_pending)
+            for (auto& [title, ready] : titles_) ready = true;
         std::string result = "{\"status\":0,\"games\":[";
         bool first = true;
         for (const auto& [title, ready] : titles_) {
@@ -113,16 +126,45 @@ std::optional<std::string> MockConsole::Transport(const std::string& route, cons
 bool MockConsole::Install(GameId id, std::string* reason) {
     const auto* fixture = Find(id);
     if (!fixture) return Fail(reason, "Steam fixture does not own this app");
+    auto ordered = sources;
+    if (!ordered.empty()) std::rotate(ordered.begin(), ordered.begin() + selected_source % ordered.size(), ordered.end());
+    last_resolution = sls::ResolveManifest(*id.steam_app(), ordered,
+        [this, id](const std::string& url, std::string* payload, std::string*) {
+            for (const auto& source : sources) {
+                if (sls::SourceUrl(source, *id.steam_app()) != url) continue;
+                const auto found = source_responses.find(source.id);
+                if (found == source_responses.end() || !found->second) return false;
+                *payload = *found->second;
+                return true;
+            }
+            return false;
+        });
+    last_plan = {};
+    if (!last_resolution.ok) return Fail(reason, "No valid fixture manifest source");
+    last_plan = sls::PlanAuthorizedDepots(last_resolution.metadata, authorized_depots);
+    if (last_plan.selected.empty() || !last_plan.unrecognized.empty())
+        return Fail(reason, "Fixture depot is not authorized by mock Steam");
     if (fixture->payload.size() > free_bytes) return Fail(reason, "Mock console storage is full");
     try {
         const auto base = "/data/playden-games/" + std::to_string(*id.steam_app());
-        Write(Path(base + "/" + fixture->executable), fixture->payload);
+        const auto partial = Path(base + "/download.partial");
+        std::string prefix;
+        if (fs::exists(partial)) prefix = Read(partial);
+        if (fixture->payload.compare(0, prefix.size(), prefix) != 0)
+            return Fail(reason, "Corrupt interrupted fixture download");
+        resumed_bytes = prefix.size();
+        if (interrupt_after_bytes) {
+            Write(partial, fixture->payload.substr(0, std::min(*interrupt_after_bytes, fixture->payload.size())));
+            return Fail(reason, "Mock installation interrupted; resume to continue");
+        }
+        Write(Path(base + "/" + fixture->executable), prefix + fixture->payload.substr(prefix.size()));
         if (Read(Path(base + "/" + fixture->executable)) != fixture->payload)
             return Fail(reason, "Fixture installation verification failed");
         if (std::none_of(installed_.begin(), installed_.end(), [id](const auto& item) { return item.game_id == id; })) {
             installed_.push_back({id, fixture->payload.size(), "internal", true});
             free_bytes -= fixture->payload.size();
         }
+        fs::remove(partial);
         return true;
     } catch (const std::exception& error) { if (reason) *reason = error.what(); return false; }
 }
@@ -179,7 +221,7 @@ void MockConsole::Attach(Simulation& model) {
 }
 void MockConsole::Publish(Simulation& model) {
     model.UpdateVolumes({{"internal", "Mock PS5 temporary storage", true, 8ULL * 1024 * 1024 * 1024, free_bytes, true}}, "internal");
-    model.UpdateInstalls({}, installed_);
+    model.UpdateInstalls(jobs_, installed_);
     std::vector<LiveRuntimeGame> games;
     for (const auto& fixture : fixtures_) {
         auto& game = runtime_[fixture.game.id];
@@ -190,15 +232,24 @@ void MockConsole::Publish(Simulation& model) {
     model.UpdateRuntime(RuntimeState::Ready, games);
 }
 void MockConsole::Tick(Simulation& model) {
+    selected_source = static_cast<std::size_t>(model.state().mock_source);
     for (const auto& request : model.TakeInstallRequests()) {
         std::string reason;
-        if (request.kind == InstallRequestKind::Install) {
+        if (request.kind == InstallRequestKind::Install || request.kind == InstallRequestKind::Resume) {
+            jobs_.clear();
             if (Install(request.game_id, &reason)) model.RequestRuntimePrepare(request.game_id);
             else {
-                model.UpdateInstalls({{request.game_id, JobState::Failed, 0, 0, reason, "internal"}}, installed_);
-                return;
+                jobs_.push_back({request.game_id, JobState::Failed, 0, 0, reason, "internal"});
             }
         }
+    }
+    if (!last_resolution.attempts.empty()) {
+        std::string status;
+        for (const auto& attempt : last_resolution.attempts) {
+            if (!status.empty()) status += "; ";
+            status += attempt.source_id + ": " + attempt.status;
+        }
+        model.SetMockSourceStatus(status);
     }
     for (const auto id : model.TakeRuntimePrepareRequests()) {
         std::string reason;

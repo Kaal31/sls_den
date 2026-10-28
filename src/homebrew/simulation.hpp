@@ -640,6 +640,8 @@ struct State {
     bool quit_waiting = false;  // a quit to Home waits for a preparation; no new one starts meanwhile
     bool simulation_mode = true;
     bool mock_console = false; // live service requests, host-only offline doubles
+    int mock_source = 0;
+    std::string mock_source_status;
     std::int64_t clock_ticks = 0;
 };
 
@@ -717,6 +719,7 @@ public:
                ModelMode mode = ModelMode::Simulation);
 
     bool scenario(const std::string& name);
+    void SetMockSourceStatus(std::string status);
     bool action(const std::string& logical_action);
     void controller_sample(ControllerState sample);
     void text(const std::string& utf8);

@@ -29,6 +29,11 @@ int main(int argc, char** argv) {
         Check(!console.Install(id, &reason), "installation refuses full disk");
         console.free_bytes = 8ULL * 1024 * 1024 * 1024;
         Check(console.Install(id, &reason), "fixture installation");
+        Check(console.last_resolution.ok && console.last_resolution.source_id == "valid" &&
+              console.last_resolution.attempts.size() == 3, "unavailable and corrupt sources fall back to valid fixture");
+        Check(console.last_plan.selected.size() == 1 &&
+              console.last_plan.selected.front().manifest_gid == 123456789,
+              "third-party manifest GID never replaces mock Steam authorized GID");
         Check(!console.ValidateLaunch(id, &reason), "unprepared title cannot launch");
         console.registration_available = false;
         Check(!console.Prepare(id, &reason), "unreachable registration fails closed");
@@ -36,9 +41,6 @@ int main(int argc, char** argv) {
         console.title_collision = true;
         Check(!console.Prepare(id, &reason), "foreign registration collision refused");
         console.title_collision = false;
-        console.registration_pending = true;
-        // Existing collision row now belongs to this mock; erase it by using a fresh console below.
-        console.registration_pending = false;
         Check(console.Prepare(id, &reason), "title and private bottle preparation");
         Check(console.ValidateLaunch(id, &reason), "launch preparation validates files and registration");
         Check(reason.find("no hardware runtime tested") != std::string::npos, "validation states hardware limit");
@@ -61,10 +63,30 @@ int main(int argc, char** argv) {
     Check(!fs::exists(removed), "temporary filesystem cleaned up");
     {
         MockConsole console(argv[1]);
+        console.authorized_depots.clear();
+        Check(!console.Install(id, &reason), "unentitled depot denied even with valid source");
+        Check(!fs::exists(console.Path("/data/playden-games/220/bin/mock-game.exe")), "denial writes no game content");
+        console.source_responses["valid"] = "setManifestid(221, \"123\")";
+        Check(!console.Install(id, &reason) && !console.last_resolution.ok, "corrupt manifest rejected end to end");
+    }
+    {
+        MockConsole console(argv[1]);
+        console.interrupt_after_bytes = 8;
+        Check(!console.Install(id, &reason), "interrupted fixture install reports failure");
+        Check(!console.Prepare(id, &reason), "partial installation cannot prepare title");
+        Check(fs::file_size(console.Path("/data/playden-games/220/download.partial")) == 8, "partial progress is persisted");
+        console.interrupt_after_bytes.reset();
+        Check(console.Install(id, &reason) && console.resumed_bytes == 8, "interrupted install resumes verified prefix");
+        Check(console.Prepare(id, &reason), "resumed install prepares normally");
+    }
+    {
+        MockConsole console(argv[1]);
         Check(console.Install(id, &reason), "pending fixture install");
         console.registration_pending = true;
         Check(!console.Prepare(id, &reason) && reason == "Mock registration pending", "pending registration is not ready");
         Check(!console.ValidateLaunch(id, &reason), "pending registration blocks launch validation");
+        console.registration_pending = false;
+        Check(console.Prepare(id, &reason), "pending registration can become ready on retry");
     }
     {
         Simulation model({}, {}, ModelMode::MockConsole);
@@ -73,11 +95,15 @@ int main(int argc, char** argv) {
         Check(model.state().mock_console && model.view().show_simulation_label, "desktop mock mode visibly labeled");
         Check(model.state().games.size() == 1, "Steam owned-games response populates real UI model");
         Check(model.action("details:220"), "open fixture in actual desktop details model");
+        Activate(model, "details-mock-source");
+        Check(model.state().mock_source == 1, "controller cycles source selection");
         Activate(model, "details-install");
         Activate(model, "install-confirm");
         console.Tick(model);
         Check(console.ValidateLaunch(id, &reason), "UI install request prepares mock console title");
         Check(model.state().runtime_games.at(id).ready, "prepared title projected into UI");
+        Check(model.state().mock_source_status.find("invalid_manifest") != std::string::npos,
+              "source failure and fallback are exposed to UI");
         Activate(model, "details-play");
         console.Tick(model);
         Check(!model.state().quit_requested, "mock Play never hands off to hardware");
