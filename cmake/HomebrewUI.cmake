@@ -396,11 +396,12 @@ add_library(playden_mock_console STATIC src/homebrew/mock_console.cpp
     src/platform/ps5/title_registry.cpp src/platform/ps5/title_runtime.cpp)
 target_link_libraries(playden_mock_console PUBLIC playden_homebrew_model playden_steam_protocol sls_manifest)
 target_compile_features(playden_mock_console PUBLIC cxx_std_20)
+target_compile_definitions(playden_mock_console PUBLIC
+    PLAYDEN_MOCK_CONSOLE_FIXTURE="${CMAKE_SOURCE_DIR}/fixtures/mock-console/steam.json")
 add_executable(playden-homebrew "${CMAKE_SOURCE_DIR}/src/homebrew/host.cpp")
 target_compile_features(playden-homebrew PRIVATE cxx_std_20)
 target_compile_definitions(playden-homebrew PRIVATE
     GL_SILENCE_DEPRECATION=1
-    PLAYDEN_MOCK_CONSOLE_FIXTURE="${CMAKE_SOURCE_DIR}/fixtures/mock-console/steam.json"
     PLAYDEN_HOMEBREW_ASSETS_DIR="${playden_homebrew_assets}"
     PLAYDEN_HOMEBREW_FIXTURES_DIR="${CMAKE_SOURCE_DIR}/fixtures/ui-comparison"
     PLAYDEN_HOMEBREW_DEFAULT_PROFILE="${CMAKE_BINARY_DIR}/homebrew-profile.json"
@@ -474,7 +475,7 @@ if(BUILD_TESTING)
         PLAYDEN_HOMEBREW_CA_BUNDLE="${playden_staged_ca}"
         PLAYDEN_HOMEBREW_FIXTURES_DIR="${CMAKE_SOURCE_DIR}/fixtures/ui-comparison"
         PLAYDEN_HOMEBREW_ASSETS_DIR="${playden_homebrew_assets}")
-    target_link_libraries(homebrew_host_input_test PRIVATE playden_homebrew_ui
+    target_link_libraries(homebrew_host_input_test PRIVATE playden_mock_console playden_homebrew_ui
         playden_homebrew_controller playden_local_session_repository playden_library playden_steam_auth playden_steam_library playden_steam_cm
         playden_local_copy PkgConfig::SDL2 OpenGL::GL)
     add_test(NAME homebrew_host_input COMMAND homebrew_host_input_test "${CMAKE_SOURCE_DIR}/fixtures/ui-comparison")
