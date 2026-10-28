@@ -418,10 +418,10 @@ if(BUILD_TESTING)
     add_executable(mock_console_test tests/mock_console_test.cpp)
     target_link_libraries(mock_console_test PRIVATE playden_mock_console)
     add_test(NAME mock_console COMMAND mock_console_test "${CMAKE_SOURCE_DIR}/fixtures/mock-console/steam.json")
-    add_test(NAME mock_console_desktop COMMAND playden-homebrew --mock-console --headless
-        --replay "${CMAKE_SOURCE_DIR}/fixtures/mock-console/install-play.replay"
-        --snapshot "${CMAKE_BINARY_DIR}/mock-console-state.json"
-        --capture "${CMAKE_BINARY_DIR}/mock-console.png")
+    find_package(Python3 REQUIRED COMPONENTS Interpreter)
+    add_test(NAME mock_console_desktop COMMAND "${Python3_EXECUTABLE}"
+        "${CMAKE_SOURCE_DIR}/tests/test_mock_console_desktop.py" "$<TARGET_FILE:playden-homebrew>"
+        "${CMAKE_SOURCE_DIR}/fixtures/mock-console/install-play.replay" "${CMAKE_BINARY_DIR}")
     add_executable(homebrew_focus_motion_test "${CMAKE_SOURCE_DIR}/tests/homebrew_focus_motion_test.cpp")
     target_compile_features(homebrew_focus_motion_test PRIVATE cxx_std_20)
     target_include_directories(homebrew_focus_motion_test PRIVATE "${CMAKE_SOURCE_DIR}/src")

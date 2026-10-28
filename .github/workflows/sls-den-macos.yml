@@ -46,5 +46,5 @@ jobs:
             build/homebrew-host/Testing/Temporary/
             build/homebrew-host/mock-console-state.json
             build/homebrew-host/mock-console.png
-            build/homebrew-host/mock-console.png.json
+            build/homebrew-host/mock-console.png.render.json
           if-no-files-found: ignore

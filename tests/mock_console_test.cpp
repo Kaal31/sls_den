@@ -98,7 +98,6 @@ int main(int argc, char** argv) {
         Activate(model, "details-mock-source");
         Check(model.state().mock_source == 1, "controller cycles source selection");
         Activate(model, "details-install");
-        Activate(model, "install-confirm");
         console.Tick(model);
         Check(console.ValidateLaunch(id, &reason), "UI install request prepares mock console title");
         Check(model.state().runtime_games.at(id).ready, "prepared title projected into UI");

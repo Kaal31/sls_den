@@ -268,7 +268,7 @@ void MockConsole::Tick(Simulation& model) {
         game.play_status = ready ? "Mock validation passed" : "Mock validation refused";
         game.play_detail = reason;
         game.activity = TitleActivity::Stopped;
-        model.NotifyPlayStopped(id, reason); // never quit to Home or claim a running game
+        if (!ready) model.NotifyPlayStopped(id, reason);
     }
     Publish(model);
 }
