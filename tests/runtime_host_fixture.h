@@ -16,6 +16,7 @@
 #include <iterator>
 #include <memory>
 #include <optional>
+#include <source_location>
 #include <string>
 #include <sys/stat.h>
 #include <thread>
@@ -91,12 +92,20 @@ struct Fixture {
 };
 // Generous: a loaded build machine (parallel ctest, other builds) can stretch a step past 10 s.
 inline RuntimeSnapshot WaitFor(const RuntimeHost& host, const std::function<bool(const RuntimeSnapshot&)>& done,
-                        int seconds = 30) {
+                        int seconds = 30, std::source_location caller = std::source_location::current()) {
   const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(seconds);
   for (;;) {
     auto snapshot = host.Snapshot();
     if (done(snapshot)) return snapshot;
-    CHECK(std::chrono::steady_clock::now() < deadline);
+    if (std::chrono::steady_clock::now() >= deadline) {
+      std::fprintf(stderr, "%s:%u: runtime wait timed out in %s; status=%d reason=%s kit=%s prepares=%llu plays=%llu\n",
+          caller.file_name(), caller.line(), caller.function_name(), static_cast<int>(snapshot.status),
+          snapshot.reason.c_str(), snapshot.kit_reason.c_str(),
+          static_cast<unsigned long long>(snapshot.prepares_handled), static_cast<unsigned long long>(snapshot.plays_handled));
+      for (const auto& [app, reason] : snapshot.refusals) std::fprintf(stderr, "prepare %u: %s\n", app, reason.c_str());
+      for (const auto& [app, reason] : snapshot.play_refusals) std::fprintf(stderr, "play %u: %s\n", app, reason.c_str());
+      std::exit(1);
+    }
     std::this_thread::sleep_for(std::chrono::milliseconds(2));
   }
 }

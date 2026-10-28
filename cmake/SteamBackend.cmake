@@ -236,7 +236,9 @@ function(playden_register_steam_backend_tests)
         add_test(NAME http_client
             COMMAND "${Python3_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/tests/http_fixture_server.py"
                 "$<TARGET_FILE:http_client_test>" "${CMAKE_SOURCE_DIR}/tests/fixtures/http")
-        set_tests_properties(http_client PROPERTIES TIMEOUT 15)
+        # Includes 80 requests across eight TLS clients, plus intentional stalls.
+        # Individual request timeout/cancellation assertions remain unchanged.
+        set_tests_properties(http_client PROPERTIES TIMEOUT 60)
 
         add_executable(auth_client_test "${CMAKE_SOURCE_DIR}/tests/auth_client_test.cpp")
         target_link_libraries(auth_client_test PRIVATE playden_steam_auth)

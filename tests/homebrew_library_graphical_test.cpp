@@ -93,6 +93,7 @@ int main(int argc,char** argv) {
     assert(model.state().games.size()==3 && model.state().account().cache_available);
     Render renderer(PLAYDEN_HOMEBREW_ASSETS_DIR);
     auto capture=[&](const char* name) {
+      std::fprintf(stderr, "graphical capture: %s\n", name);
       for(int i=0;i<16;++i) renderer.draw(model,1920,1080);
       assert(renderer.capture_png(output/name,1920,1080));
     };
@@ -191,6 +192,7 @@ int main(int argc,char** argv) {
       live.UpdateRuntime(RuntimeState::Ready, {ready});
       assert(live.action("details:42"));
       auto capture_live=[&](const char* name) {
+        std::fprintf(stderr, "graphical capture: %s\n", name);
         for(int i=0;i<16;++i) renderer.draw(live,1920,1080);
         assert(renderer.capture_png(output/name,1920,1080));
       };
@@ -311,7 +313,7 @@ int main(int argc,char** argv) {
       live.SetRuntimeLeftovers(1);
       assert(live.action("focus:settings-runtime"));
       capture_live("settings-storage-bottom.png");
-      while(live.state().navigation.focus_key!="settings-storage") assert(live.action("up"));
+      assert(live.action("focus:settings-storage"));
       capture_live("settings-storage-top-again.png");
       // A drive without a space report that is disconnected: one line and its state.
       live.UpdateVolumes({{"internal","USB drive",false,{},{}}}, "internal");

@@ -44,6 +44,7 @@ int main(int argc, char** argv) {
   const std::string plain_url = argv[4];
   std::atomic<bool> cancel{false};
   HttpClient client(ca_bundle);
+  std::cerr << "HTTP fixture: keepalive and cancellation\n";
 
 
   {
@@ -123,6 +124,7 @@ int main(int argc, char** argv) {
   }
 
   HttpRequest get;
+  std::cerr << "HTTP fixture: GET/POST, bounds and TLS validation\n";
   get.url = base_url + "/ok";
   auto response = client.Perform(get, cancel);
   Check(response.ok(), "verified GET should succeed");
@@ -244,6 +246,7 @@ int main(int argc, char** argv) {
 
   {
     std::atomic<int> ready{0};
+    std::cerr << "HTTP fixture: eight parallel clients\n";
     std::atomic<bool> begin{false};
     std::vector<std::thread> workers;
     for (int index = 0; index < 8; ++index) workers.emplace_back([&] {
@@ -262,5 +265,6 @@ int main(int argc, char** argv) {
     for (auto& worker : workers) worker.join();
   }
 
+  std::cerr << "HTTP fixture: complete\n";
   return 0;
 }
