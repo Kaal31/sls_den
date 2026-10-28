@@ -31,12 +31,12 @@ jobs:
         run: scripts/build-homebrew.sh --prepare-only
       - name: Configure
         run: cmake --preset homebrew-host
-      - name: Build SLS test targets and simulator
+      - name: Build full host suite and desktop simulator
         run: |
-          cmake --build --preset homebrew-host --target sls_manifest_metadata_test sls_source_catalog_test sls_source_resolver_test sls_authorized_depot_plan_test sls_source_http homebrew_simulation_test playden-homebrew --parallel 4
-      - name: Run SLS tests and existing Playden simulation test
+          cmake --build --preset homebrew-host --parallel 4
+      - name: Run full host suite including mock console acceptance
         run: |
-          ctest --test-dir build/homebrew-host --output-on-failure -R '^(sls_|homebrew_simulation)'
+          ctest --preset homebrew-host --output-on-failure
       - name: Upload CTest logs
         if: always()
         uses: actions/upload-artifact@v4

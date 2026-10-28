@@ -392,23 +392,31 @@ add_custom_target(playden_homebrew_assets ALL
     DEPENDS ${playden_barlow_outputs}
     VERBATIM)
 
+add_library(playden_mock_console STATIC src/homebrew/mock_console.cpp
+    src/platform/ps5/title_registry.cpp src/platform/ps5/title_runtime.cpp)
+target_link_libraries(playden_mock_console PUBLIC playden_homebrew_model playden_steam_protocol)
+target_compile_features(playden_mock_console PUBLIC cxx_std_20)
 add_executable(playden-homebrew "${CMAKE_SOURCE_DIR}/src/homebrew/host.cpp")
 target_compile_features(playden-homebrew PRIVATE cxx_std_20)
 target_compile_definitions(playden-homebrew PRIVATE
     GL_SILENCE_DEPRECATION=1
+    PLAYDEN_MOCK_CONSOLE_FIXTURE="${CMAKE_SOURCE_DIR}/fixtures/mock-console/steam.json"
     PLAYDEN_HOMEBREW_ASSETS_DIR="${playden_homebrew_assets}"
     PLAYDEN_HOMEBREW_FIXTURES_DIR="${CMAKE_SOURCE_DIR}/fixtures/ui-comparison"
     PLAYDEN_HOMEBREW_DEFAULT_PROFILE="${CMAKE_BINARY_DIR}/homebrew-profile.json"
     PLAYDEN_HOMEBREW_DEFAULT_DATA_DIR="${CMAKE_BINARY_DIR}/playden-data"
     PLAYDEN_HOMEBREW_CA_BUNDLE="${playden_staged_ca}")
 target_link_libraries(playden-homebrew PRIVATE
-    playden_homebrew_ui playden_homebrew_controller playden_local_session_repository
+    playden_mock_console playden_homebrew_ui playden_homebrew_controller playden_local_session_repository
     playden_library playden_steam_auth playden_steam_library playden_steam_cm playden_local_copy PkgConfig::SDL2 OpenGL::GL)
 add_dependencies(playden-homebrew playden_homebrew_assets playden_steam_trust)
 set_target_properties(playden-homebrew PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
 
 if(BUILD_TESTING)
+    add_executable(mock_console_test tests/mock_console_test.cpp)
+    target_link_libraries(mock_console_test PRIVATE playden_mock_console)
+    add_test(NAME mock_console COMMAND mock_console_test "${CMAKE_SOURCE_DIR}/fixtures/mock-console/steam.json")
     add_executable(homebrew_focus_motion_test "${CMAKE_SOURCE_DIR}/tests/homebrew_focus_motion_test.cpp")
     target_compile_features(homebrew_focus_motion_test PRIVATE cxx_std_20)
     target_include_directories(homebrew_focus_motion_test PRIVATE "${CMAKE_SOURCE_DIR}/src")

@@ -3230,7 +3230,7 @@ class Render::Impl
         if (view.show_simulation_label)
         {
             scene_.rounded_rect({1652.0F, 989.0F, 172.0F, 34.0F}, 17.0F, kText.with_alpha(0.08F));
-            ui::text(scene_, fonts_.semibold, "UI SIMULATION", 1738.0F, 1012.0F, 16.0F, kSecondary,
+            ui::text(scene_, fonts_.semibold, current_state_->mock_console ? "MOCK CONSOLE" : "UI SIMULATION", 1738.0F, 1012.0F, 16.0F, kSecondary,
                      gfx::Align::center, 1.2F);
         }
     }

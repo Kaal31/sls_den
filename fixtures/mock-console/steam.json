@@ -1,0 +1,8 @@
+{
+  "response": {
+    "game_count": 1,
+    "games": [
+      {"appid": 220, "name": "Mock Steam game (no runtime)", "executable": "bin/mock-game.exe", "payload": "PLAYDEN MOCK EXECUTABLE - NOT RUNNABLE\n"}
+    ]
+  }
+}

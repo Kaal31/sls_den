@@ -784,6 +784,7 @@ Simulation::Simulation(std::filesystem::path fixture_directory, std::filesystem:
 void Simulation::reset_default_state() {
     state_ = {};
     state_.simulation_mode = !live();
+    state_.mock_console = mode_ == ModelMode::MockConsole;
     state_.clock_ticks = live() ? 0 : kFixtureClock;
     state_.navigation.scroll_offsets["library-grid"] = 0;
     state_.navigation.scroll_offsets["home"] = 0;
@@ -3786,7 +3787,7 @@ void Simulation::rebuild_view() {
     view_ = {};
     if (state_.navigation.route != Route::Downloads) queue_shown_ = false;
     view_.surface = route_name(state_.navigation.route);
-    view_.show_simulation_label = state_.simulation_mode;
+    view_.show_simulation_label = state_.simulation_mode || state_.mock_console;
     if (state_.editor.active) view_.surface = "keyboard";
     else if (!state_.navigation.modals.empty()) view_.surface = state_.navigation.modals.back().id;
 

@@ -5,6 +5,7 @@
 #include "homebrew/render.hpp"
 #include "homebrew/artwork_backend.hpp"
 #include "homebrew/simulation.hpp"
+#include "homebrew/mock_console.hpp"
 #include "homebrew/controller.hpp"
 #include "steam/install_volumes.h"
 #include "stores/local/copy_runner.h"
@@ -58,12 +59,13 @@ struct Options {
     bool headless = false;
     bool record_motion = false;
     bool simulation = false;
+    bool mock_console = false;
 };
 
 void usage(const char* executable) {
     std::fprintf(stderr,
                  "usage: %s [--simulation] [--scenario ID] [--profile PATH] [--replay PATH]\n"
-                 "          [--data-dir PATH] [--extra-volume PATH]...\n"
+                 "          [--mock-console] [--data-dir PATH] [--extra-volume PATH]...\n"
                  "          [--capture PATH.png] [--snapshot PATH|-] [--record-dir PATH] [--headless]\n"
                  "          [--width PX] [--height PX] [--record-motion]\n",
                  executable);
@@ -88,6 +90,11 @@ std::optional<Options> parse_options(int argc, char** argv) {
             continue;
         }
         if (option == "--simulation") {
+            options.simulation = true;
+            continue;
+        }
+        if (option == "--mock-console") {
+            options.mock_console = true;
             options.simulation = true;
             continue;
         }
@@ -133,6 +140,10 @@ std::optional<Options> parse_options(int argc, char** argv) {
         }
     }
     if (!options.capture.empty() || !options.recording.empty()) options.headless = true;
+    if (options.mock_console && !options.scenario.empty()) {
+        std::fprintf(stderr, "--mock-console uses service fixtures and cannot load UI scenarios\n");
+        return std::nullopt;
+    }
     const bool exposes_simulation_state = options.headless || !options.capture.empty() ||
         !options.snapshot.empty() || !options.recording.empty() || options.record_motion;
     if (exposes_simulation_state && !options.simulation) {
@@ -156,7 +167,8 @@ std::string trim(std::string text) {
 }
 
 bool apply_replay(playden::homebrew::Simulation& simulation, const std::filesystem::path& path,
-                  const std::function<bool(const std::string&)>& record = {}) {
+                  const std::function<bool(const std::string&)>& record = {},
+                  const std::function<void()>& pump = {}) {
     if (path.empty()) return true;
     std::ifstream input(path);
     if (!input) {
@@ -203,6 +215,7 @@ bool apply_replay(playden::homebrew::Simulation& simulation, const std::filesyst
                 std::fprintf(stderr, "%s\n", simulation.last_error().c_str());
             return false;
         }
+        if (pump) pump();
         if (record && !record(line)) return false;
     }
     return true;
@@ -383,7 +396,8 @@ int main(int argc, char** argv) {
         if (error) { std::fprintf(stderr, "live data directory is unavailable\n"); return 2; }
     }
 
-    const auto mode = options->simulation ? playden::homebrew::ModelMode::Simulation
+    const auto mode = options->mock_console ? playden::homebrew::ModelMode::MockConsole
+                     : options->simulation ? playden::homebrew::ModelMode::Simulation
                                           : playden::homebrew::ModelMode::Live;
     playden::homebrew::Simulation simulation(
         options->simulation ? std::filesystem::path(PLAYDEN_HOMEBREW_FIXTURES_DIR)
@@ -445,7 +459,16 @@ int main(int argc, char** argv) {
         std::fprintf(stderr, "%s\n", simulation.last_error().c_str());
         return 2;
     }
-    if (options->recording.empty() && !apply_replay(simulation, options->replay)) return 2;
+    std::unique_ptr<playden::homebrew::MockConsole> mock;
+    try {
+        if (options->mock_console) {
+            mock = std::make_unique<playden::homebrew::MockConsole>(PLAYDEN_MOCK_CONSOLE_FIXTURE);
+            mock->Attach(simulation);
+            std::fprintf(stderr, "Mock console: %s (temporary; no hardware runtime tested)\n", mock->root().c_str());
+        }
+    } catch (const std::exception& error) { std::fprintf(stderr, "%s\n", error.what()); return 2; }
+    const auto pump_mock = [&] { if (mock) mock->Tick(simulation); };
+    if (options->recording.empty() && !apply_replay(simulation, options->replay, {}, pump_mock)) return 2;
 
     SDL_SetHint(SDL_HINT_VIDEO_HIGHDPI_DISABLED, "1");
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMECONTROLLER) != 0) {
@@ -638,7 +661,7 @@ int main(int argc, char** argv) {
             return states.good();
         };
         if (error || !states || !record("initial") ||
-            !apply_replay(simulation, options->replay, record)) {
+            !apply_replay(simulation, options->replay, record, pump_mock)) {
             render.reset();
             SDL_GL_DeleteContext(context);
             SDL_DestroyWindow(window);
@@ -720,6 +743,7 @@ int main(int argc, char** argv) {
             static_cast<float>(now_us - last_render_us) / 1000000.0F;
         last_render_us = now_us;
         if (services) services->Tick();
+        pump_mock();
         render->draw(simulation, width, height, options->headless ? 1.0F / 60.0F : frame_dt);
         rendered_once = true;
         if (simulation.state().quit_requested) running = false;

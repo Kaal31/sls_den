@@ -22,7 +22,7 @@ namespace playden::homebrew {
 using GameId = playden::GameId;
 
 enum class Route { Startup, SignIn, Home, Library, Downloads, Settings, Details, Session, Saves, SaveDetails };
-enum class ModelMode { Simulation, Live };
+enum class ModelMode { Simulation, Live, MockConsole };
 // UsePassword/UseQr switch the sign-in screen's method; BeginPassword and SubmitCode carry the form's
 // secrets, which the controller takes with TakeSignInCredentials and TakeGuardCode.
 enum class ServiceAction { BeginQr, CancelQr, SignOut, SwitchAccount, RefreshLibrary, Reauthenticate,
@@ -639,6 +639,7 @@ struct State {
     bool quit_requested = false;
     bool quit_waiting = false;  // a quit to Home waits for a preparation; no new one starts meanwhile
     bool simulation_mode = true;
+    bool mock_console = false; // live service requests, host-only offline doubles
     std::int64_t clock_ticks = 0;
 };
 
@@ -1191,7 +1192,7 @@ private:
     void open_live_log(const std::string& topic, GameId game_id);
     void load_live_log();
     [[nodiscard]] bool live_notices_visible() const noexcept;
-    [[nodiscard]] bool live() const noexcept { return mode_ == ModelMode::Live; }
+    [[nodiscard]] bool live() const noexcept { return mode_ != ModelMode::Simulation; }
     [[nodiscard]] const std::string& install_target() const noexcept {
         return install_volume_id_.empty() ? selected_volume_id_ : install_volume_id_;
     }
