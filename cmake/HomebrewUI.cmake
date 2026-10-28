@@ -517,6 +517,8 @@ if(BUILD_TESTING)
     add_dependencies(homebrew_library_graphical_test playden_homebrew_assets)
     add_test(NAME homebrew_library_graphical COMMAND homebrew_library_graphical_test
         "${CMAKE_BINARY_DIR}/synthetic-live-library")
+    # Hundreds of full-resolution OpenGL frames and PNG captures on hosted macOS.
+    set_tests_properties(homebrew_library_graphical PROPERTIES TIMEOUT 600)
 
     add_executable(homebrew_artwork_graphical_test "${CMAKE_SOURCE_DIR}/tests/homebrew_artwork_graphical_test.cpp")
     target_compile_features(homebrew_artwork_graphical_test PRIVATE cxx_std_20)

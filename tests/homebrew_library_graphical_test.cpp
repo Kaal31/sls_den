@@ -69,6 +69,7 @@ int main(int argc,char** argv) {
                                  SDL_WINDOW_OPENGL|SDL_WINDOW_HIDDEN);
   assert(window);
   auto context=SDL_GL_CreateContext(window); assert(context);
+  SDL_GL_SetSwapInterval(0);
   hui::gfx::set_glsl_prefix("#version 410 core\n");
   const std::filesystem::path output(argv[1]);
   std::filesystem::create_directories(output);

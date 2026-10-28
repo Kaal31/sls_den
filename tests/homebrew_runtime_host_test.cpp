@@ -524,9 +524,11 @@ void PreparationEndsAwaitingRegistration() {
   CHECK(submissions > 0 && fixture.submitted && !fixture.registered);
 
   // Asked again while the console still has not registered it: still waiting, nothing resubmitted.
+  const auto handled_before_retry = host.Snapshot().prepares_handled;
   host.Prepare(Hl2());
-  auto again = WaitFor(host, [](const RuntimeSnapshot& s) { return s.preparing_app.has_value(); });
-  again = WaitFor(host, [](const RuntimeSnapshot& s) { return !s.preparing_app; }, 30);
+  const auto again = WaitFor(host, [handled_before_retry](const RuntimeSnapshot& s) {
+    return s.prepares_handled > handled_before_retry && !s.preparing_app;
+  }, 30);
   CHECK(!again.refusals.count(220) && again.installs[0].awaiting_registration);
   CHECK(fixture.registry_mutations == submissions);
 

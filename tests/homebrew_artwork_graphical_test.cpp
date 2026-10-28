@@ -60,7 +60,9 @@ int main(int argc,char** argv) {
         // Navigation remains active while the worker is waiting.
         assert(model.action("right"));
         backend.release=true;
-        const auto deadline=std::chrono::steady_clock::now()+3s;
+        // Hosted macOS OpenGL frames can take seconds. Wait for worker results,
+        // rather than assuming several render/pump cycles fit in three seconds.
+        const auto deadline=std::chrono::steady_clock::now()+30s;
         while(renderer.diagnostics().live_artwork_texture_count<2 && std::chrono::steady_clock::now()<deadline) {
             renderer.draw(model,1920,1080);
             std::this_thread::sleep_for(1ms);
