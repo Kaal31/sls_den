@@ -16,6 +16,8 @@ snapshot = json.loads(state.read_text())
 if not snapshot.get("mock_console") or snapshot.get("hardware_runtime_tested") is not False:
     raise RuntimeError("desktop snapshot lacks explicit mock/hardware boundary")
 runtime = snapshot["mock_runtime"]
+if "invalid_manifest" not in snapshot.get("mock_source_status", ""):
+    raise RuntimeError("desktop flow did not exercise corrupt-source fallback")
 if len(runtime) != 1 or not runtime[0]["ready"] or runtime[0]["play_status"] != "Mock validation passed":
     raise RuntimeError(f"desktop install/play flow failed: {runtime}")
 if "no hardware runtime tested" not in runtime[0]["detail"]:

@@ -144,6 +144,9 @@ bool MockConsole::Install(GameId id, std::string* reason) {
     last_plan = sls::PlanAuthorizedDepots(last_resolution.metadata, authorized_depots);
     if (last_plan.selected.empty() || !last_plan.unrecognized.empty())
         return Fail(reason, "Fixture depot is not authorized by mock Steam");
+    if (std::any_of(last_plan.selected.begin(), last_plan.selected.end(), [](const auto& depot) {
+            return !depot.manifest_gid || *depot.manifest_gid == 0;
+        })) return Fail(reason, "Mock Steam supplied no authorized manifest GID");
     if (fixture->payload.size() > free_bytes) return Fail(reason, "Mock console storage is full");
     try {
         const auto base = "/data/playden-games/" + std::to_string(*id.steam_app());
@@ -239,7 +242,11 @@ void MockConsole::Tick(Simulation& model) {
             jobs_.clear();
             if (Install(request.game_id, &reason)) model.RequestRuntimePrepare(request.game_id);
             else {
-                jobs_.push_back({request.game_id, JobState::Failed, 0, 0, reason, "internal"});
+                const auto* fixture = Find(request.game_id);
+                const auto total = fixture ? fixture->payload.size() : 0;
+                const auto done = interrupt_after_bytes ? std::min(*interrupt_after_bytes, total) : 0;
+                jobs_.push_back({request.game_id, interrupt_after_bytes ? JobState::Interrupted : JobState::Failed,
+                                 done, total, reason, "internal"});
             }
         }
     }

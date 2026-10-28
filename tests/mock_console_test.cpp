@@ -71,6 +71,19 @@ int main(int argc, char** argv) {
     }
     {
         MockConsole console(argv[1]);
+        console.authorized_depots.front().manifest_gid.reset();
+        Check(!console.Install(id, &reason), "third-party GID cannot fill missing Steam authorization");
+    }
+    {
+        MockConsole console(argv[1]);
+        console.interrupt_after_bytes = 8;
+        Check(!console.Install(id, &reason), "corrupt partial fixture starts interrupted");
+        std::ofstream(console.Path("/data/playden-games/220/download.partial")) << "bad bytes";
+        console.interrupt_after_bytes.reset();
+        Check(!console.Install(id, &reason), "corrupt partial data cannot resume");
+    }
+    {
+        MockConsole console(argv[1]);
         console.interrupt_after_bytes = 8;
         Check(!console.Install(id, &reason), "interrupted fixture install reports failure");
         Check(!console.Prepare(id, &reason), "partial installation cannot prepare title");
@@ -87,6 +100,31 @@ int main(int argc, char** argv) {
         Check(!console.ValidateLaunch(id, &reason), "pending registration blocks launch validation");
         console.registration_pending = false;
         Check(console.Prepare(id, &reason), "pending registration can become ready on retry");
+    }
+    {
+        Simulation model({}, {}, ModelMode::MockConsole);
+        MockConsole console(argv[1]);
+        console.Attach(model);
+        console.source_responses["valid"] = std::nullopt;
+        Check(model.action("details:220"), "open source failure fixture");
+        Activate(model, "details-install");
+        console.Tick(model);
+        Check(!model.state().jobs.empty() && model.state().jobs.front().state == JobState::Failed,
+              "source failure becomes a real UI failed install job");
+        console.Tick(model);
+        Check(!model.state().jobs.empty() && model.state().jobs.front().state == JobState::Failed,
+              "UI failure remains visible across service ticks");
+    }
+    {
+        Simulation model({}, {}, ModelMode::MockConsole);
+        MockConsole console(argv[1]);
+        console.Attach(model);
+        console.interrupt_after_bytes = 8;
+        Check(model.action("details:220"), "open interrupted install fixture");
+        Activate(model, "details-install");
+        console.Tick(model);
+        Check(!model.state().jobs.empty() && model.state().jobs.front().state == JobState::Interrupted,
+              "interrupted fixture projects resumable job state into real UI");
     }
     {
         Simulation model({}, {}, ModelMode::MockConsole);

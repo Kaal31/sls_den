@@ -8282,7 +8282,8 @@ std::string Simulation::snapshot() const {
                << ",\"available\":" << (volume.available ? "true" : "false") << '}';
     }
     if (state_.mock_console) {
-        output << "],\"mock_console\":true,\"hardware_runtime_tested\":false,\"mock_runtime\":[";
+        output << "],\"mock_console\":true,\"hardware_runtime_tested\":false,\"mock_source_status\":\""
+               << json::escape(state_.mock_source_status) << "\",\"mock_runtime\":[";
         bool first_runtime = true;
         for (const auto& [id, game] : state_.runtime_games) {
             if (!first_runtime) output << ',';

@@ -2915,6 +2915,8 @@ class Render::Impl
 
         // The setup hint belongs to the actions, with a smaller face and a coloured dot.
         // Leave a clear gap before the description; ready games have no hint.
+        if (state.mock_console && !state.mock_source_status.empty())
+            ui::text(scene_, fonts_.semibold, state.mock_source_status, kSafeX, 746.0F, 18.0F, kSecondary);
         float y = 774.0F;
         for (const ViewRow &row : view.rows)
         {
