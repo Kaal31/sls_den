@@ -35,9 +35,10 @@ PreferencesLoadResult PreferencesStore::Load() const {
   std::string serialized = ToString(read.value());
   std::string source_url;
   if (serialized.rfind("version=8\n", 0) == 0) {
-    const auto at = serialized.rfind("sls_source_url=");
-    if (at == std::string::npos || at == 0 || serialized[at - 1] != '\n' || serialized.back() != '\n')
+    const auto marker = serialized.rfind("\nsls_source_url=");
+    if (marker == std::string::npos || serialized.back() != '\n')
       return {Preferences{}, PreferencesLoadStatus::kDefaultCorrupt, "Manifest source preferences are corrupt."};
+    const auto at = marker + 1;
     source_url = serialized.substr(at + 15, serialized.size() - at - 16);
     if (!sls::ValidateSource({"configured", "Configured source", source_url}))
       return {Preferences{}, PreferencesLoadStatus::kDefaultCorrupt, "Manifest source URL is invalid."};

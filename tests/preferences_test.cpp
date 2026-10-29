@@ -287,7 +287,7 @@ void ManifestSourcePreferences() {
   playden::PreferencesStore store(storage);
   auto preferences = store.Load().preferences;
   Check(preferences.sls_source_url.empty(), "old or missing preferences make no source requests");
-  preferences.sls_source_url = "https://fixtures.invalid/apps/{appid}.lua";
+  preferences.sls_source_url = "https://fixtures.invalid/apps/{appid}.lua?label=sls_source_url=value";
   preferences.beta_updates = true;
   Check(store.Save(preferences).ok(), "source preference saves through normal storage");
   const auto loaded = store.Load();
