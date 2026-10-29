@@ -191,7 +191,7 @@ add_library(playden_homebrew_model STATIC
     "${CMAKE_SOURCE_DIR}/src/homebrew/browse.cpp"
     "${CMAKE_SOURCE_DIR}/src/homebrew/store_art.cpp")
 target_compile_features(playden_homebrew_model PUBLIC cxx_std_20)
-target_link_libraries(playden_homebrew_model PUBLIC playden_library playden_diagnostic_log playden_steam_cm_codec)
+target_link_libraries(playden_homebrew_model PUBLIC playden_library playden_diagnostic_log playden_steam_cm_codec sls_manifest)
 target_include_directories(playden_homebrew_model PUBLIC "${CMAKE_SOURCE_DIR}/src")
 
 foreach(qr_file qrcodegen.c qrcodegen.h LICENSE README.md)
@@ -415,6 +415,9 @@ set_target_properties(playden-homebrew PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
 
 if(BUILD_TESTING)
+    add_executable(homebrew_source_settings_test tests/homebrew_source_settings_test.cpp)
+    target_link_libraries(homebrew_source_settings_test PRIVATE playden_homebrew_model)
+    add_test(NAME homebrew_source_settings COMMAND homebrew_source_settings_test)
     add_executable(mock_console_test tests/mock_console_test.cpp)
     target_link_libraries(mock_console_test PRIVATE playden_mock_console)
     add_test(NAME mock_console COMMAND mock_console_test "${CMAKE_SOURCE_DIR}/fixtures/mock-console/steam.json")

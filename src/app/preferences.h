@@ -23,6 +23,8 @@ struct Preferences {
   // saved on the PS5, so every Playden start asks for a sign-in. On (the default) keeps it in session.v1.
   bool steam_stay_signed_in = true;
   bool beta_updates = false;
+  // Optional HTTPS manifest metadata template; empty keeps the normal Steam path.
+  std::string sls_source_url;
 };
 
 enum class PreferencesLoadStatus {

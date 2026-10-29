@@ -2,6 +2,8 @@
 
 #include "runtime/steamworks.h"
 #include "steam/backend/app_info.h"
+#include "sls/install_metadata.h"
+#include "sls/native_source_fetch.h"
 
 #include <set>
 #include <charconv>
@@ -155,6 +157,19 @@ InstallRunner::Result SteamInstallRunner::InstallApp(const StoredSession& sessio
     for (const auto& selected : target.depots)
       if (selected.id == depot.id) ordered.push_back(selected);
   target.depots = ordered;
+  // Optional source metadata is consulted only after Steam's license and base
+  // depot checks. Missing/invalid metadata falls back to the complete Steam plan.
+  const auto source_url = source_url_ ? source_url_() : std::string();
+  if (!source_url.empty()) {
+    HttpClient source_http(source_ca_);
+    const auto metadata = sls::ResolveInstallMetadata(id,
+        {{"configured", "Configured source", source_url}},
+        sls::MakeNativeSourceFetch(source_http, cancel), target.depots);
+    if (cancel.load()) { result.canceled = true; return result; }
+    target.depots = metadata.depots;
+    // Never log URLs, source text, keys or account identity.
+    log("source_metadata", metadata.status.c_str(), "Steam depot authorization and manifest IDs retained");
+  }
   std::string selected_ids;
   for (const auto& depot : target.depots) selected_ids += (selected_ids.empty() ? "" : " ") + std::to_string(depot.id);
   log("depots", "selected", selected_ids.c_str());

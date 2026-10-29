@@ -12,6 +12,12 @@ bool ValidateSource(const Source& s, std::string* why) {
       })) return fail("invalid source ID");
   if (s.url_template.size() > 2048 || s.url_template.compare(0, 8, "https://") != 0)
     return fail("HTTPS required");
+  if (std::any_of(s.url_template.begin(), s.url_template.end(), [](unsigned char c) { return c <= 32 || c == 127; }))
+    return fail("URL whitespace and controls are not supported");
+  const auto host_end = s.url_template.find_first_of("/?", 8);
+  const auto host = s.url_template.substr(8, host_end == std::string::npos ? host_end : host_end - 8);
+  if (host.empty() || host.find_first_of("{}\\") != std::string::npos)
+    return fail("invalid HTTPS host");
   if (s.url_template.find('#') != std::string::npos || s.url_template.find('@') != std::string::npos)
     return fail("URL fragments and userinfo are not supported");
   auto at = s.url_template.find("{appid}");

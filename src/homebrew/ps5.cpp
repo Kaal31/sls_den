@@ -352,6 +352,10 @@ int main() {
         playden::steam::CdnClient install_cdn(paths.trust_store);
         playden::LocalSessionRepository install_sessions(user_root, {}, &session_vault);
         playden::steam::SteamInstallRunner install_runner(install_sessions, install_cm, install_cdn);
+        install_runner.SetManifestSource([user_root] {
+            playden::Storage storage(user_root);
+            return playden::PreferencesStore(storage).Load().preferences.sls_source_url;
+        }, paths.trust_store);
         install_runner.SetTuning([root = paths.title_root] {
             // A developer's tuning file wins over the setting.
             const auto file = root + "/dev/download-tuning.txt";

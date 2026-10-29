@@ -627,6 +627,7 @@ struct State {
     bool title_store_suffix = false;  // PS5 titles named "<game> (Steam)"
     bool cloud_saves_auto = false;    // Cloud saves move before Play, after sessions and at startup (opt-in)
     bool beta_updates = false;
+    std::string sls_source_url;
     bool downloads_slow_network = false;  // 8 download pieces at a time instead of 4 (Settings › Storage)
     bool controller_connected = true;
     ControllerState controller;

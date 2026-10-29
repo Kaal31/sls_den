@@ -23,6 +23,11 @@ class SteamInstallRunner final : public SessionInstallRunner {
                  const std::function<void(InstallStep)>& step) override;
   std::string Remove(const std::string& root) override;
   void SetTuning(std::function<DownloadTuning()> tuning) { tuning_ = std::move(tuning); }
+  // Configure before the worker starts. Reads the saved setting on the worker;
+  // no UI state is accessed from that thread. Empty disables source requests.
+  void SetManifestSource(std::function<std::string()> url, std::string ca_bundle) {
+    source_url_ = std::move(url); source_ca_ = std::move(ca_bundle);
+  }
   // Optional sanitized log: the Steam app ID, step, error category and a short detail; never
   // tokens or account identifiers. Called on the install worker.
   using LogFn = InstallLogFn;
@@ -43,6 +48,8 @@ class SteamInstallRunner final : public SessionInstallRunner {
   LogFn log_;
   std::function<DownloadTuning()> tuning_;
   std::atomic<std::uint32_t> current_app_{0};
+  std::function<std::string()> source_url_;
+  std::string source_ca_;
 };
 
 // User-facing text for an install failure category.

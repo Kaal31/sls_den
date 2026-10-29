@@ -35,9 +35,9 @@ jobs:
       - name: Build full host suite and desktop simulator
         run: |
           cmake --build --preset homebrew-host --parallel 4
-      - name: Run mock console and actual desktop acceptance
+      - name: Run source integration and actual desktop acceptance
         run: |
-          ctest --preset homebrew-host --output-on-failure --timeout 180 -R '^mock_console'
+          ctest --preset homebrew-host --output-on-failure --timeout 180 -R '^(mock_console|sls_|homebrew_source_settings|preferences)'
       - name: Run full host suite
         run: |
           ctest --preset homebrew-host --output-on-failure --timeout 180
@@ -52,3 +52,18 @@ jobs:
             build/homebrew-host/mock-console.png
             build/homebrew-host/mock-console.png.render.json
           if-no-files-found: ignore
+  ps5-package:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Install cross-build tools
+        run: sudo apt-get update && sudo apt-get install -y cmake ninja-build clang-18 llvm-18 lld-18 python3-pil zstd pkg-config libssl-dev
+      - name: Fetch pinned SDK dependencies
+        run: scripts/fetch-deps.sh
+      - name: Build title-scoped helper
+        run: scripts/build-lapy-helper.sh
+      - name: Cross-compile and package PS5 app (no hardware execution)
+        run: scripts/build-homebrew-ps5.sh

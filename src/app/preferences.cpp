@@ -1,4 +1,5 @@
 #include "app/preferences.h"
+#include "sls/source_catalog.h"
 
 #include <string>
 
@@ -32,6 +33,17 @@ PreferencesLoadResult PreferencesStore::Load() const {
   }
 
   std::string serialized = ToString(read.value());
+  std::string source_url;
+  if (serialized.rfind("version=8\n", 0) == 0) {
+    const auto at = serialized.rfind("sls_source_url=");
+    if (at == std::string::npos || at == 0 || serialized[at - 1] != '\n' || serialized.back() != '\n')
+      return {Preferences{}, PreferencesLoadStatus::kDefaultCorrupt, "Manifest source preferences are corrupt."};
+    source_url = serialized.substr(at + 15, serialized.size() - at - 16);
+    if (!sls::ValidateSource({"configured", "Configured source", source_url}))
+      return {Preferences{}, PreferencesLoadStatus::kDefaultCorrupt, "Manifest source URL is invalid."};
+    serialized.erase(at);
+    serialized.replace(0, 9, "version=7");
+  }
   bool beta_updates = false;
   if (serialized.rfind("version=7\n", 0) == 0) {
     const auto suffix = serialized.rfind("beta_updates=");
@@ -45,6 +57,7 @@ PreferencesLoadResult PreferencesStore::Load() const {
   // Version 1 holds only reduce_motion; version 2 adds title_store_suffix; version 3 cloud_saves_auto;
   // version 4 steam_sign_in_password; version 5 downloads_slow_network; version 6 steam_stay_signed_in
   // (on in files older than that). Version 7 appends beta_updates (off in older files).
+  // Version 8 appends an optional HTTPS source; clearing it writes version 7 again.
   for (const int motion : {0, 1}) {
     if (serialized == std::string("version=1\nreduce_motion=") + char('0' + motion) + "\n") {
       Preferences preferences;
@@ -116,6 +129,7 @@ PreferencesLoadResult PreferencesStore::Load() const {
                 preferences.downloads_slow_network = slow == 1;
                 preferences.steam_stay_signed_in = stay == 1;
                 preferences.beta_updates = beta_updates;
+                preferences.sls_source_url = source_url;
                 return PreferencesLoadResult{preferences, PreferencesLoadStatus::kLoaded, std::string()};
               }
   }
@@ -125,15 +139,19 @@ PreferencesLoadResult PreferencesStore::Load() const {
 }
 
 Result<void> PreferencesStore::Save(const Preferences& preferences) const {
+  if (!preferences.sls_source_url.empty() &&
+      !sls::ValidateSource({"configured", "Configured source", preferences.sls_source_url}))
+    return Result<void>::Failure(StorageError::kInvalidData, "Invalid manifest source URL.");
   const auto ready=storage_.EnsureRootDirectory();
   if(!ready.ok()) return ready;
-  const std::string text = std::string("version=7\nreduce_motion=") + (preferences.reduce_motion ? "1" : "0") +
+  std::string text = std::string(preferences.sls_source_url.empty() ? "version=7\nreduce_motion=" : "version=8\nreduce_motion=") + (preferences.reduce_motion ? "1" : "0") +
                            "\ntitle_store_suffix=" + (preferences.title_store_suffix ? "1" : "0") +
                            "\ncloud_saves_auto=" + (preferences.cloud_saves_auto ? "1" : "0") +
                            "\nsteam_sign_in_password=" + (preferences.steam_sign_in_password ? "1" : "0") +
                            "\ndownloads_slow_network=" + (preferences.downloads_slow_network ? "1" : "0") +
                            "\nsteam_stay_signed_in=" + (preferences.steam_stay_signed_in ? "1" : "0") +
                            "\nbeta_updates=" + (preferences.beta_updates ? "1" : "0") + "\n";
+  if (!preferences.sls_source_url.empty()) text += "sls_source_url=" + preferences.sls_source_url + "\n";
   return storage_.WriteAtomic(kPreferencesPath, Bytes(text.begin(), text.end()));
 }
 

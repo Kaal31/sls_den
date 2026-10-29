@@ -1,37 +1,23 @@
-# SLS Den — integration status
+# SLS Den integration
 
-## Implemented on sls-manifest-integration
-- Native, data-only LuaTools metadata parser (`src/sls/manifest_metadata.*`).
-- Configurable HTTPS source registry and URL validation (`src/sls/source_catalog.*`).
-- Entitlement-preserving depot selection planner (`src/sls/authorized_depot_plan.h`).
-- Three host CTest targets registered through `cmake/SlsManifest.cmake`, included in the top-level CMake build.
+The harness milestone at `787e63b` passed both mock/desktop acceptance tests and **154/154 host tests** on macOS Actions attempt 2:
+https://github.com/Kaal31/sls_den/actions/runs/40758936205/attempts/2
+The full suite took 864.44 seconds. That result predates the following source-settings integration; the new changes require their own validation.
 
-## Boundaries
-- No Lua execution or Steam client hooks.
-- No Moon binary dependency.
-- Sources are not fetched yet: the registry merely validates configured endpoint templates. Provider endpoints, authentication and real network behavior remain unverified.
-- Depot planning intersects requested depot IDs with **already-authorized** Steam `DepotInfo` records; manifest GIDs from third parties are not used for installation.
-- The existing `SteamInstallRunner`, `SelectDepots`, `DepotInstaller`, authentication and game launching remain unchanged.
-- No Playden-native UI work is done yet.
+## Optional source integration
 
-## Validation
-- The separately packaged early SLS manifest prototype built under Linux GCC and its CTest smoke test passed.
-- The new integration-branch CTest targets have **not yet been run** in a full Playden checkout.
-- No macOS graphical simulation, PS5 SDK build, or hardware launch test has been run.
-- A Playden console launch after stages 3–5 requires installed PS5 hardware and compatible firmware. A host simulation cannot substitute for this.
+Settings > Library > Manifest source edits one optional HTTPS URL template containing `{appid}`. Clear the field to disable it. No provider is bundled. The existing preferences worker persists the setting; old files default to Off. URL whitespace, control characters and userinfo are rejected.
 
-## Next
-1. Confirm source API schemas and integrate Playden's HTTP client with fixture-backed source tests.
-2. Complete validation of Lua manifest syntax using fixtures, never executing source code.
-3. Add UI for inspecting available source metadata and existing entitled depots.
-4. Integrate only with Playden's supported authorized download path.
-5. Run full host test suite, PS5 cross-compile, and finally launch acceptance tests on a jailbroken PS5.
+The existing SteamInstallRunner consults configured metadata only after Steam license, Windows depot selection and missing-base-depot checks. A complete metadata match retains Steam's depot order and authorized manifest GIDs. Source pins never replace those GIDs. Unknown depots, incomplete coverage, malformed data or source outages retain the complete Steam plan. Cancellation stops before download. The same DepotInstaller still performs the transfer and verification.
 
-## Source resolution module (latest)
-- `src/sls/source_resolver.{h,cpp}`: ordered source fallback using a host-provided fetch callback.
-- Payloads are capped at 1 MiB and parsed as *data*, never executed as Lua.
-- API-key sources are excluded until authenticated transport is designed.
-- Does not currently implement live HTTPS, archive unpacking, or endpoint-specific provider authentication.
-- `tests/sls_source_resolver_test.cpp` covers first-provider invalid metadata, fallback, network failure and oversized responses.
-- The new test is registered in CMake but has not been executed in a full Playden build environment.
-- Playden's Steam downloader, DRM handling, permissions and launch behavior are unchanged.
+Network requests and preference reads run on the installer worker, never the UI thread. Logs record the metadata decision category without URLs or payloads. No second downloader, Lua execution, Moon dependency or ownership change is introduced.
+
+## Tests and limits
+
+New tests cover complete/incomplete metadata, unknown depots, source failure, Steam order/GID preservation, preference migration/restart/clear, URL validation and the real Settings editor model. CI also attempts a PS5 cross-build/package because the console entry point and explicit archive list include the optional source integration.
+
+One source template can currently be edited in the native UI. Multi-source fallback exists in the resolver and fixtures; a persistent multi-provider manager is not implemented. Provider-specific APIs, authenticated providers, ZIP responses and live third-party endpoints remain unverified. Fixture responses contain raw Lua-style text metadata.
+
+See [mock-console harness](mock-console-harness.md) for temporary storage, fixture installation/resume, registration and launch-preparation tests, and [PS4 feasibility](ps4-feasibility.md) for the separate port assessment.
+
+No real Steam game transfer, PS5 title registration or Wine/game execution was tested on console hardware. Host tests and cross-builds are not console acceptance.

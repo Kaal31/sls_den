@@ -4,6 +4,7 @@
 // SPDX-License-Identifier: MIT
 
 #include "homebrew/simulation.hpp"
+#include "sls/source_catalog.h"
 #include "runtime/game_probe.h"
 
 #include "app/diagnostic_log.h"
@@ -2652,7 +2653,7 @@ playden::OrganizationSnapshot Simulation::ExportOrganization() const {
 
 playden::Preferences Simulation::ExportPreferences() const {
     return {state_.reduced_motion, state_.title_store_suffix, state_.cloud_saves_auto, state_.sign_in_password,
-            state_.downloads_slow_network, state_.stay_signed_in, state_.beta_updates};
+            state_.downloads_slow_network, state_.stay_signed_in, state_.beta_updates, state_.sls_source_url};
 }
 
 void Simulation::apply_organization_snapshot(const playden::OrganizationSnapshot& snapshot) {
@@ -2878,6 +2879,7 @@ bool Simulation::ApplyPreferences(PersistenceLoadToken token,
         state_.cloud_saves_auto = loaded.preferences.cloud_saves_auto;
         state_.sign_in_password = loaded.preferences.steam_sign_in_password;
         state_.beta_updates = loaded.preferences.beta_updates;
+        state_.sls_source_url = loaded.preferences.sls_source_url;
         state_.downloads_slow_network = loaded.preferences.downloads_slow_network;
         state_.stay_signed_in = loaded.preferences.steam_stay_signed_in;
         captured_preferences_ = loaded.preferences;
@@ -2959,6 +2961,7 @@ bool Simulation::record_live_persistence() {
                                       after_preferences.steam_sign_in_password != captured_preferences_.steam_sign_in_password ||
                                       after_preferences.downloads_slow_network != captured_preferences_.downloads_slow_network ||
                                       after_preferences.beta_updates != captured_preferences_.beta_updates ||
+                                      after_preferences.sls_source_url != captured_preferences_.sls_source_url ||
                                       after_preferences.steam_stay_signed_in != captured_preferences_.steam_stay_signed_in);
 
     if (organization_changed && !snapshot_within_model_bounds(after_organization)) {
@@ -2982,6 +2985,7 @@ bool Simulation::record_live_persistence() {
                 state_.cloud_saves_auto = captured_preferences_.cloud_saves_auto;
                 state_.sign_in_password = captured_preferences_.steam_sign_in_password;
                 state_.beta_updates = captured_preferences_.beta_updates;
+                state_.sls_source_url = captured_preferences_.sls_source_url;
                 state_.downloads_slow_network = captured_preferences_.downloads_slow_network;
                 state_.stay_signed_in = captured_preferences_.steam_stay_signed_in;
                 organization_journal_full_ = true;
@@ -5171,6 +5175,11 @@ void Simulation::rebuild_view() {
         if (state_.account().authentication != AuthState::SignedOut)
             add("settings-signout", RowKind::Action, "Sign out", "signout-confirm").dangerous = true;
         section = "Library";
+        if (live()) {
+            auto& source = add("settings-manifest-source", RowKind::Action, "Manifest source", "manifest-source-edit");
+            source.value = state_.sls_source_url.empty() ? "Off" : "Configured";
+            source.subtitle = "Optional HTTPS URL with {appid}. Steam still checks access. Clear the URL to turn off.";
+        }
         {
             // Windows games in a drive's playden/import or the console drop folder: the Import sheet.
             auto& entry = add("settings-import", RowKind::Action, "Import games", "import-manage");
@@ -5717,6 +5726,20 @@ void Simulation::submit_fixture_sign_in() {
 }
 
 void Simulation::commit_editor() {
+    if (state_.editor.purpose == "Manifest source URL") {
+        const auto value = trimmed(state_.editor.value);
+        std::string reason;
+        if (!value.empty() && !sls::ValidateSource({"configured", "Configured source", value}, &reason)) {
+            push_notice({"manifest-source-invalid", reason, "", true, 0, true});
+            return;
+        }
+        std::erase_if(state_.notices, [](const Notice& notice) { return notice.id == "manifest-source-invalid"; });
+        state_.sls_source_url = value;
+        state_.editor.active = false;
+        state_.navigation.focus_key = state_.editor.opener_focus_key;
+        save_profile();
+        return;
+    }
     if (state_.navigation.route == Route::SignIn &&
         (state_.editor.purpose == "Account name" || state_.editor.purpose == "Password" ||
          state_.editor.purpose == "Steam Guard code")) {
@@ -6392,6 +6415,8 @@ void Simulation::activate() {
         state_.navigation.selected_game_id = selected.game_id;
         state_.navigation.route = Route::Details;
         details_primary_pending_ = live(); state_.navigation.focus_key = live() ? "details-favorite" : (is_installed(state_, selected.game_id) ? "details-play" : "details-install");
+    } else if (live() && action_name == "manifest-source-edit") {
+        start_editor("Manifest source URL", state_.sls_source_url);
     } else if (state_.mock_console && action_name == "mock-source-next") {
         state_.mock_source = (state_.mock_source + 1) % 3;
     } else if (action_name == "favorite") {

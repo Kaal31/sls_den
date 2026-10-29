@@ -281,6 +281,25 @@ void PreferencesPrepareIndependentRoot() {
   std::remove((root+"/preferences.conf").c_str());rmdir(root.c_str());
 }
 
+void ManifestSourcePreferences() {
+  TemporaryDirectory directory;
+  playden::Storage storage(directory.path());
+  playden::PreferencesStore store(storage);
+  auto preferences = store.Load().preferences;
+  Check(preferences.sls_source_url.empty(), "old or missing preferences make no source requests");
+  preferences.sls_source_url = "https://fixtures.invalid/apps/{appid}.lua";
+  preferences.beta_updates = true;
+  Check(store.Save(preferences).ok(), "source preference saves through normal storage");
+  const auto loaded = store.Load();
+  Check(loaded.status == playden::PreferencesLoadStatus::kLoaded &&
+        loaded.preferences.sls_source_url == preferences.sls_source_url && loaded.preferences.beta_updates,
+        "version eight source and existing settings survive restart");
+  preferences.sls_source_url = "https://fixtures.invalid/{appid}\ninjected=1";
+  Check(!store.Save(preferences).ok(), "source preferences reject line injection");
+  Check(store.Load().preferences.sls_source_url == loaded.preferences.sls_source_url, "invalid source leaves saved configuration intact");
+  preferences.sls_source_url.clear();
+  Check(store.Save(preferences).ok() && store.Load().preferences.sls_source_url.empty(), "clear persists disabled source");
+}
 }  // namespace
 
 int main() {
@@ -295,6 +314,7 @@ int main() {
   TitleStoreSuffixPersistsAndVersionOneStillLoads();
   SignInMethodPersistsAndVersionThreeOpensQr();
   StaySignedInDefaultsOnAndPersistsOff();
+  ManifestSourcePreferences();
 
   if (failures != 0) {
     std::fprintf(stderr, "%d preference test assertion(s) failed\n", failures);
