@@ -27,8 +27,13 @@ jobs:
             Write-Host "Real Playden host requires Windows compatibility work; see compiler output."
             exit 1
           }
+      - name: Probe real Playden renderer compilation
+        shell: pwsh
+        run: |
+          clang-cl /nologo /std:c++20 /EHsc /I src /I third_party/ps5-homebrew-ui/src /I third_party/stb /c src/homebrew/view.cpp /Fo:windows-playden/out/view.obj 2>&1 | Tee-Object windows-playden/out/renderer-output.txt
+          if ($LASTEXITCODE -ne 0) { throw "Playden renderer still needs Windows portability fixes" }
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: windows-playden-host-port-probe
-          path: windows-playden/out/compiler-output.txt
+          path: windows-playden/out/*.txt
