@@ -23,8 +23,8 @@ jobs:
       - name: Run source-model smoke test
         shell: pwsh
         run: |
-          & .\dist\sls-den-preview.exe --self-test
-          if ($LASTEXITCODE -ne 0) { throw "Source model smoke test failed ($LASTEXITCODE)" }
+          $process = Start-Process -FilePath ".\dist\sls-den-preview.exe" -ArgumentList "--self-test" -PassThru -Wait
+          if ($process.ExitCode -ne 0) { throw "Source model smoke test failed ($($process.ExitCode))" }
       - name: Include readme
         shell: pwsh
         run: Copy-Item windows-preview\README.md dist\README.txt
