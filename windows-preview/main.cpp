@@ -10,6 +10,7 @@
 using playden::sls::Source;
 namespace {
 HWND listbox{}, url{}, stateLabel{};
+HFONT uiFont{};
 std::vector<Source> sources;
 std::wstring W(const std::string& value) {
   if(value.empty()) return {};
@@ -39,7 +40,7 @@ void Save() {
 void Refresh() {
   SendMessageW(listbox,LB_RESETCONTENT,0,0);
   for(const auto& p:sources) {
-    std::wstring line=(p.enabled?L"[ON]  ":L"[OFF] ")+W(p.display_name)+L"  —  "+W(p.url_template);
+    std::wstring line=(p.enabled?L"[ON]  ":L"[OFF] ")+W(p.display_name)+L"  |  "+W(p.url_template);
     SendMessageW(listbox,LB_ADDSTRING,0,(LPARAM)line.c_str());
   }
   std::wstring message=L"SLS Den Windows preview  |  "+std::to_wstring(sources.size())+L"/16 sources  |  Offline mock mode";
@@ -47,10 +48,18 @@ void Refresh() {
 }
 int Selection(){return (int)SendMessageW(listbox,LB_GETCURSEL,0,0);}
 HWND Control(HWND window,LPCWSTR name,LPCWSTR text,DWORD style,int x,int y,int w,int h,int id) {
-  return CreateWindowExW(0,name,text,WS_CHILD|WS_VISIBLE|style,x,y,w,h,window,(HMENU)(INT_PTR)id,GetModuleHandleW(nullptr),nullptr);
+  HWND child = CreateWindowExW(0,name,text,WS_CHILD|WS_VISIBLE|style,x,y,w,h,window,(HMENU)(INT_PTR)id,GetModuleHandleW(nullptr),nullptr);
+  if (child && uiFont) SendMessageW(child, WM_SETFONT, reinterpret_cast<WPARAM>(uiFont), TRUE);
+  return child;
 }
 LRESULT CALLBACK Proc(HWND window,UINT msg,WPARAM wp,LPARAM lp) {
   if(msg==WM_CREATE) {
+    NONCLIENTMETRICSW metrics{};
+    metrics.cbSize = sizeof(metrics);
+    if (SystemParametersInfoW(SPI_GETNONCLIENTMETRICS, sizeof(metrics), &metrics, 0)) {
+      uiFont = CreateFontIndirectW(&metrics.lfMessageFont);
+    }
+    if (!uiFont) uiFont = static_cast<HFONT>(GetStockObject(DEFAULT_GUI_FONT));
     Control(window,L"STATIC",L"SLS DEN  /  WINDOWS PREVIEW",0,20,18,680,35,0);
     stateLabel=Control(window,L"STATIC",L"Offline mock mode",0,20,58,760,25,0);
     listbox=Control(window,L"LISTBOX",L"",LBS_NOTIFY|WS_BORDER|WS_VSCROLL,20,100,750,290,10);
@@ -92,7 +101,10 @@ LRESULT CALLBACK Proc(HWND window,UINT msg,WPARAM wp,LPARAM lp) {
     }
     if(id>=101 && id<=105){Save();Refresh();return 0;}
   }
-  if(msg==WM_DESTROY){PostQuitMessage(0);return 0;}
+  if(msg==WM_DESTROY){
+    if (uiFont && uiFont != GetStockObject(DEFAULT_GUI_FONT)) DeleteObject(uiFont);
+    PostQuitMessage(0);return 0;
+  }
   return DefWindowProcW(window,msg,wp,lp);
 }
 }
@@ -106,7 +118,7 @@ int WINAPI wWinMain(HINSTANCE instance,HINSTANCE,LPWSTR args,int show) {
   WNDCLASSW wc{};wc.lpfnWndProc=Proc;wc.hInstance=instance;wc.lpszClassName=L"SLSDenPreview";
   wc.hbrBackground=(HBRUSH)(COLOR_WINDOW+1);wc.hCursor=LoadCursor(nullptr,IDC_ARROW);
   RegisterClassW(&wc);
-  HWND window=CreateWindowW(wc.lpszClassName,L"SLS Den — Windows Preview",
+  HWND window=CreateWindowW(wc.lpszClassName,L"SLS Den - Windows Preview",
     WS_OVERLAPPEDWINDOW|WS_VISIBLE,CW_USEDEFAULT,CW_USEDEFAULT,815,640,nullptr,nullptr,instance,nullptr);
   ShowWindow(window,show);
   MSG msg{};while(GetMessageW(&msg,nullptr,0,0)>0){TranslateMessage(&msg);DispatchMessageW(&msg);}
