@@ -555,6 +555,13 @@ int main(int argc, char** argv) {
             playden::Storage storage(root);
             return playden::PreferencesStore(storage).Load().preferences.sls_source_url;
         }, PLAYDEN_HOMEBREW_CA_BUNDLE);
+        install_runner->SetManifestSources([root = options->data_directory.string()] {
+            playden::Storage storage(root);
+            const auto config = playden::PreferencesStore(storage).Load().preferences.sls_source_list;
+            std::vector<playden::sls::Source> sources;
+            playden::sls::ParseSourceList(config, &sources);
+            return sources;
+        });
         install_runner->SetLog([log_directory](std::uint32_t app, const char* step, const char* category, const char* detail) {
             char line[640];
             if (std::string(step) == "install-removal")
