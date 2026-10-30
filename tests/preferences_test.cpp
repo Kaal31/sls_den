@@ -1,4 +1,5 @@
 #include "app/preferences.h"
+#include "sls/source_list.h"
 #include "platform/storage.h"
 
 #include <cstdio>
@@ -300,6 +301,34 @@ void ManifestSourcePreferences() {
   preferences.sls_source_url.clear();
   Check(store.Save(preferences).ok() && store.Load().preferences.sls_source_url.empty(), "clear persists disabled source");
 }
+void MultiSourcePreferences() {
+  TemporaryDirectory directory;
+  playden::Storage storage(directory.path());
+  playden::PreferencesStore store(storage);
+  playden::Preferences prefs;
+  prefs.sls_source_list = playden::sls::SerializeSourceList({
+    {"primary", "Primary", "https://one.example/{appid}.lua", true},
+    {"backup", "Backup", "https://two.example/{appid}.lua", false}
+  });
+  Check(store.Save(prefs).ok(), "multi-source settings save");
+  auto loaded = store.Load();
+  Check(loaded.status == playden::PreferencesLoadStatus::kLoaded &&
+        loaded.preferences.sls_source_list == prefs.sls_source_list,
+        "version nine source list survives restart");
+  prefs.sls_source_url = "https://legacy.example/{appid}";
+  Check(store.Save(prefs).ok(), "legacy and multi-source settings save together");
+  loaded = store.Load();
+  Check(loaded.status == playden::PreferencesLoadStatus::kLoaded &&
+        loaded.preferences.sls_source_url == prefs.sls_source_url &&
+        loaded.preferences.sls_source_list == prefs.sls_source_list,
+        "version nine retains old custom source");
+  prefs.sls_source_list = "invalid";
+  Check(!store.Save(prefs).ok(), "malformed list rejected without writing");
+  prefs.sls_source_list.clear();
+  Check(store.Save(prefs).ok() && store.Load().preferences.sls_source_list.empty(),
+        "clearing providers restores legacy format");
+}
+
 }  // namespace
 
 int main() {
@@ -315,6 +344,7 @@ int main() {
   SignInMethodPersistsAndVersionThreeOpensQr();
   StaySignedInDefaultsOnAndPersistsOff();
   ManifestSourcePreferences();
+  MultiSourcePreferences();
 
   if (failures != 0) {
     std::fprintf(stderr, "%d preference test assertion(s) failed\n", failures);
