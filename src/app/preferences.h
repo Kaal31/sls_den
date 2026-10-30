@@ -25,6 +25,7 @@ struct Preferences {
   bool beta_updates = false;
   // Optional HTTPS manifest metadata template; empty keeps the normal Steam path.
   std::string sls_source_url;
+  std::string sls_source_list; // Serialized, bounded SLS Den provider list.
 };
 
 enum class PreferencesLoadStatus {
