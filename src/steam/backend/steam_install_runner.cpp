@@ -160,10 +160,12 @@ InstallRunner::Result SteamInstallRunner::InstallApp(const StoredSession& sessio
   // Optional source metadata is consulted only after Steam's license and base
   // depot checks. Missing/invalid metadata falls back to the complete Steam plan.
   const auto source_url = source_url_ ? source_url_() : std::string();
-  if (!source_url.empty()) {
+  auto sources = source_list_ ? source_list_() : std::vector<sls::Source>{};
+  if (!source_url.empty()) sources.push_back({"legacy", "Legacy custom source", source_url});
+  if (!sls::ActiveSources(sources).empty()) {
     HttpClient source_http(source_ca_);
     const auto metadata = sls::ResolveInstallMetadata(id,
-        {{"configured", "Configured source", source_url}},
+        sources,
         sls::MakeNativeSourceFetch(source_http, cancel), target.depots);
     if (cancel.load()) { result.canceled = true; return result; }
     target.depots = metadata.depots;
