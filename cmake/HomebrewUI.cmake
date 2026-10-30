@@ -296,15 +296,27 @@ if(PLAYDEN_PLATFORM_PS5)
     return()
 endif()
 
-if(NOT APPLE)
-    message(FATAL_ERROR "The direct ps5-homebrew-ui host currently supports macOS only")
+if(NOT APPLE AND NOT WIN32)
+    message(FATAL_ERROR "The direct ps5-homebrew-ui host currently supports macOS and experimental Windows only")
 endif()
 
 find_package(OpenGL REQUIRED)
-find_package(PkgConfig REQUIRED)
-pkg_check_modules(SDL2 REQUIRED IMPORTED_TARGET "sdl2>=2.0")
-target_sources(playden_hui PRIVATE
-    "${PLAYDEN_HUI_SOURCE_DIR}/host/platform_host.cpp")
+if(WIN32)
+    # This is an isolated, experimental source-level port. The PS5 and macOS paths
+    # continue using their existing implementations without changed dependencies.
+    find_package(SDL2 CONFIG REQUIRED)
+    add_library(PkgConfig::SDL2 INTERFACE IMPORTED)
+    target_link_libraries(PkgConfig::SDL2 INTERFACE SDL2::SDL2)
+    target_sources(playden_hui PRIVATE
+        "${CMAKE_SOURCE_DIR}/windows-playden/platform_host_windows.cpp")
+    target_compile_definitions(playden_hui PUBLIC
+        GL_GLEXT_PROTOTYPES=1 NOMINMAX=1 WIN32_LEAN_AND_MEAN=1)
+else()
+    find_package(PkgConfig REQUIRED)
+    pkg_check_modules(SDL2 REQUIRED IMPORTED_TARGET "sdl2>=2.0")
+    target_sources(playden_hui PRIVATE
+        "${PLAYDEN_HUI_SOURCE_DIR}/host/platform_host.cpp")
+endif()
 target_compile_definitions(playden_hui PUBLIC GL_SILENCE_DEPRECATION=1)
 target_link_libraries(playden_hui PUBLIC OpenGL::GL)
 target_compile_options(playden_homebrew_ui PRIVATE -Wno-deprecated-declarations)
