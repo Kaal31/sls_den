@@ -24,8 +24,12 @@
 #include <cctype>
 #include <cerrno>
 #include <ctime>
+#ifndef _WIN32
 #include <fcntl.h>
 #include <unistd.h>
+#else
+#include <io.h>
+#endif
 #include <cstdio>
 #include <cstdlib>
 #include <limits>
@@ -8882,6 +8886,18 @@ void Simulation::export_recipe(GameId id) {
     const auto temporary = recipe_export_directory_ / ("recipe-" + ToKey(id) + ".json.tmp");
     std::error_code error;
     std::filesystem::create_directories(recipe_export_directory_, error);
+#ifdef _WIN32
+    // Windows preview: write only to the explicitly selected recipe-export directory.
+    // Keep console POSIX path unchanged; use wide paths to support Unicode filenames.
+    bool written = false;
+    if (!error) {
+        if (std::FILE* output = _wfopen(temporary.c_str(), L"wb")) {
+            written = std::fwrite(text.data(), 1, text.size(), output) == text.size();
+            if (std::fflush(output) != 0) written = false;
+            if (std::fclose(output) != 0) written = false;
+        }
+    }
+#else
     // POSIX calls, not iostreams: the console's C library lacks the locale functions they need.
     bool written = false;
     const int file = ::open(temporary.c_str(), O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC | O_NOFOLLOW, 0644);
@@ -8896,6 +8912,7 @@ void Simulation::export_recipe(GameId id) {
         written = done == text.size() && ::fsync(file) == 0;
         written = ::close(file) == 0 && written;
     }
+#endif
     if (written) std::filesystem::rename(temporary, path, error);
     if (!written || error) {
         std::filesystem::remove(temporary, error);
