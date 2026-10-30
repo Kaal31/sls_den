@@ -5,6 +5,8 @@
 
 #include "homebrew/simulation.hpp"
 #include "sls/source_catalog.h"
+#include "sls/source_list.h"
+#include <charconv>
 #include "runtime/game_probe.h"
 
 #include "app/diagnostic_log.h"
@@ -2653,7 +2655,7 @@ playden::OrganizationSnapshot Simulation::ExportOrganization() const {
 
 playden::Preferences Simulation::ExportPreferences() const {
     return {state_.reduced_motion, state_.title_store_suffix, state_.cloud_saves_auto, state_.sign_in_password,
-            state_.downloads_slow_network, state_.stay_signed_in, state_.beta_updates, state_.sls_source_url};
+            state_.downloads_slow_network, state_.stay_signed_in, state_.beta_updates, state_.sls_source_url, state_.sls_source_list};
 }
 
 void Simulation::apply_organization_snapshot(const playden::OrganizationSnapshot& snapshot) {
@@ -2880,6 +2882,7 @@ bool Simulation::ApplyPreferences(PersistenceLoadToken token,
         state_.sign_in_password = loaded.preferences.steam_sign_in_password;
         state_.beta_updates = loaded.preferences.beta_updates;
         state_.sls_source_url = loaded.preferences.sls_source_url;
+        state_.sls_source_list = loaded.preferences.sls_source_list;
         state_.downloads_slow_network = loaded.preferences.downloads_slow_network;
         state_.stay_signed_in = loaded.preferences.steam_stay_signed_in;
         captured_preferences_ = loaded.preferences;
@@ -2962,6 +2965,7 @@ bool Simulation::record_live_persistence() {
                                       after_preferences.downloads_slow_network != captured_preferences_.downloads_slow_network ||
                                       after_preferences.beta_updates != captured_preferences_.beta_updates ||
                                       after_preferences.sls_source_url != captured_preferences_.sls_source_url ||
+                                      after_preferences.sls_source_list != captured_preferences_.sls_source_list ||
                                       after_preferences.steam_stay_signed_in != captured_preferences_.steam_stay_signed_in);
 
     if (organization_changed && !snapshot_within_model_bounds(after_organization)) {
@@ -2986,6 +2990,7 @@ bool Simulation::record_live_persistence() {
                 state_.sign_in_password = captured_preferences_.steam_sign_in_password;
                 state_.beta_updates = captured_preferences_.beta_updates;
                 state_.sls_source_url = captured_preferences_.sls_source_url;
+                state_.sls_source_list = captured_preferences_.sls_source_list;
                 state_.downloads_slow_network = captured_preferences_.downloads_slow_network;
                 state_.stay_signed_in = captured_preferences_.steam_stay_signed_in;
                 organization_journal_full_ = true;
@@ -5178,7 +5183,22 @@ void Simulation::rebuild_view() {
         if (live()) {
             auto& source = add("settings-manifest-source", RowKind::Action, "SLS Den · Manifest source", "manifest-source-edit");
             source.value = state_.sls_source_url.empty() ? "Off" : "1 custom source";
-            source.subtitle = "Edit HTTPS source template ({appid}). Steam verifies depot access. Multi-source manager: in development.";
+            source.subtitle = "Legacy custom source; Steam still verifies content access.";
+            std::vector<sls::Source> providers;
+            sls::ParseSourceList(state_.sls_source_list, &providers);
+            auto& add_source = add("settings-sls-add", RowKind::Action, "SLS Den · Add provider", "sls-provider-add");
+            add_source.value = std::to_string(providers.size()) + "/16";
+            add_source.subtitle = "Add an HTTPS URL containing {appid}. Sources are tried in order.";
+            for (std::size_t i = 0; i < providers.size(); ++i) {
+                auto& entry = add("settings-sls-toggle-" + std::to_string(i), RowKind::Action,
+                    "Provider " + std::to_string(i + 1) + " · " + providers[i].display_name,
+                    "sls-provider-toggle-" + std::to_string(i));
+                entry.value = providers[i].enabled ? "Enabled" : "Disabled";
+                entry.subtitle = providers[i].url_template;
+                auto& remove = add("settings-sls-remove-" + std::to_string(i), RowKind::Action,
+                    "Remove provider " + std::to_string(i + 1), "sls-provider-remove-" + std::to_string(i));
+                remove.subtitle = "Remove this configured source.";
+            }
         }
         {
             // Windows games in a drive's playden/import or the console drop folder: the Import sheet.
@@ -5726,6 +5746,30 @@ void Simulation::submit_fixture_sign_in() {
 }
 
 void Simulation::commit_editor() {
+    if (state_.editor.purpose == "SLS Den provider URL") {
+        const auto value = trimmed(state_.editor.value);
+        std::vector<sls::Source> providers;
+        if (!sls::ParseSourceList(state_.sls_source_list, &providers)) return;
+        if (providers.size() >= 16 || value.empty() ||
+            !sls::ValidateSource({"source", "Custom source", value})) {
+            push_notice({"sls-provider-invalid", "Use an HTTPS URL containing {appid}.", "", true, 0, true});
+            return;
+        }
+        std::size_t index = 1;
+        for (;;) {
+            const auto source_id = "source-" + std::to_string(index);
+            if (std::none_of(providers.begin(), providers.end(), [&](const sls::Source& p) { return p.id == source_id; })) {
+                providers.push_back({source_id, "Custom " + std::to_string(index), value});
+                break;
+            }
+            ++index;
+        }
+        state_.sls_source_list = sls::SerializeSourceList(providers);
+        state_.editor.active = false;
+        state_.navigation.focus_key = "settings-sls-add";
+        save_profile();
+        return;
+    }
     if (state_.editor.purpose == "Manifest source URL") {
         const auto value = trimmed(state_.editor.value);
         std::string reason;
@@ -6415,6 +6459,23 @@ void Simulation::activate() {
         state_.navigation.selected_game_id = selected.game_id;
         state_.navigation.route = Route::Details;
         details_primary_pending_ = live(); state_.navigation.focus_key = live() ? "details-favorite" : (is_installed(state_, selected.game_id) ? "details-play" : "details-install");
+    } else if (live() && action_name == "sls-provider-add") {
+        start_editor("SLS Den provider URL", "");
+    } else if (live() && (action_name.rfind("sls-provider-toggle-", 0) == 0 ||
+                          action_name.rfind("sls-provider-remove-", 0) == 0)) {
+        const bool remove = action_name.rfind("sls-provider-remove-", 0) == 0;
+        const auto prefix = remove ? std::string("sls-provider-remove-") : std::string("sls-provider-toggle-");
+        const auto suffix = action_name.substr(prefix.size());
+        std::size_t index = 0;
+        const auto parsed = std::from_chars(suffix.data(), suffix.data() + suffix.size(), index);
+        std::vector<sls::Source> providers;
+        if (parsed.ec == std::errc{} && parsed.ptr == suffix.data() + suffix.size() &&
+            sls::ParseSourceList(state_.sls_source_list, &providers) && index < providers.size()) {
+            if (remove) providers.erase(providers.begin() + index);
+            else providers[index].enabled = !providers[index].enabled;
+            state_.sls_source_list = sls::SerializeSourceList(providers);
+            save_profile();
+        }
     } else if (live() && action_name == "manifest-source-edit") {
         start_editor("Manifest source URL", state_.sls_source_url);
     } else if (state_.mock_console && action_name == "mock-source-next") {
