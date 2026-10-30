@@ -4,6 +4,7 @@ on:
     branches: [windows-preview]
     paths:
       - 'windows-playden/**'
+      - 'src/homebrew/simulation.cpp'
       - '.github/workflows/windows-playden-probe.yml'
   workflow_dispatch:
 permissions:
