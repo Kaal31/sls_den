@@ -1,0 +1,34 @@
+name: Windows Playden CMake Host Experiment
+on:
+  push:
+    branches: [windows-preview]
+    paths:
+      - 'cmake/HomebrewUI.cmake'
+      - 'windows-playden/**'
+      - '.github/workflows/windows-playden-cmake.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  configure-host:
+    runs-on: windows-2022
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: ilammy/msvc-dev-cmd@v1
+      - name: Install Windows SDL2 and OpenGL development headers
+        shell: pwsh
+        run: |
+          C:\vcpkg\vcpkg.exe install sdl2:x64-windows opengl-registry:x64-windows
+      - name: Configure native Playden desktop host (experimental)
+        shell: pwsh
+        run: |
+          cmake -S . -B build/windows-playden -G Ninja -DCMAKE_MAKE_PROGRAM=ninja -DCMAKE_C_COMPILER=clang-cl -DCMAKE_CXX_COMPILER=clang-cl -DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake -DBUILD_TESTING=OFF -DPLAYDEN_PLATFORM_PS5=OFF -DCMAKE_BUILD_TYPE=Debug 2>&1 | Tee-Object windows-playden/cmake-configure.log
+          if ($LASTEXITCODE -ne 0) { throw "Windows host CMake configuration has portability blockers" }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: windows-playden-cmake-logs
+          path: windows-playden/cmake-configure.log
