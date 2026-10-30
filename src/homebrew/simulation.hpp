@@ -628,6 +628,7 @@ struct State {
     bool cloud_saves_auto = false;    // Cloud saves move before Play, after sessions and at startup (opt-in)
     bool beta_updates = false;
     std::string sls_source_url;
+  std::string sls_source_list; // Serialized, bounded SLS Den provider list.
     bool downloads_slow_network = false;  // 8 download pieces at a time instead of 4 (Settings › Storage)
     bool controller_connected = true;
     ControllerState controller;
