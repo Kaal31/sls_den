@@ -53,7 +53,7 @@ jobs:
             build/homebrew-host/mock-console.png.render.json
           if-no-files-found: ignore
   ps5-package:
-    runs-on: ubuntu-24.04
+    runs-on: macos-15
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
@@ -61,11 +61,8 @@ jobs:
           submodules: recursive
       - name: Install cross-build tools
         run: |
-          curl -fsSL https://apt.llvm.org/llvm-snapshot.gpg.key | sudo tee /usr/share/keyrings/llvm.asc >/dev/null
-          echo 'deb [signed-by=/usr/share/keyrings/llvm.asc] https://apt.llvm.org/noble/ llvm-toolchain-noble-18 main' | sudo tee /etc/apt/sources.list.d/llvm18.list
-          sudo apt-get update
-          sudo apt-get install -y cmake ninja-build clang-18 llvm-18 lld-18 python3-pil zstd pkg-config libssl-dev
-          clang-18 --version | head -n 1 | grep '18.1.8'
+          brew install cmake ninja llvm@18 pkg-config
+          "$(brew --prefix llvm@18)/bin/clang" --version | head -n 1 | grep '18.1.8'
       - name: Fetch pinned SDK dependencies
         run: scripts/fetch-deps.sh
       - name: Build title-scoped helper
