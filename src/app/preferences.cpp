@@ -1,5 +1,6 @@
 #include "app/preferences.h"
 #include "sls/source_catalog.h"
+#include "sls/source_list.h"
 
 #include <string>
 
@@ -33,7 +34,32 @@ PreferencesLoadResult PreferencesStore::Load() const {
   }
 
   std::string serialized = ToString(read.value());
-  std::string source_url;
+  std::string source_list, source_url;
+  if (serialized.rfind("version=9\n", 0) == 0) {
+    const auto marker9 = serialized.rfind("\nsls_sources_hex=");
+    if (marker9 == std::string::npos || serialized.back() != '\n')
+      return {Preferences{}, PreferencesLoadStatus::kDefaultCorrupt, "SLS provider settings are corrupt."};
+    const auto at9 = marker9 + 1;
+    const auto encoded = serialized.substr(at9 + 16, serialized.size() - at9 - 17);
+    if (encoded.empty() || encoded.size() > 128 * 1024 || encoded.size() % 2)
+      return {Preferences{}, PreferencesLoadStatus::kDefaultCorrupt, "SLS provider settings are corrupt."};
+    for (std::size_t i = 0; i < encoded.size(); i += 2) {
+      const auto digit = [](char c) -> int {
+        if (c >= '0' && c <= '9') return c - '0';
+        if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+        if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+        return -1;
+      };
+      const int hi = digit(encoded[i]), lo = digit(encoded[i + 1]);
+      if (hi < 0 || lo < 0) return {Preferences{}, PreferencesLoadStatus::kDefaultCorrupt, "Invalid provider data."};
+      source_list.push_back(static_cast<char>((hi << 4) | lo));
+    }
+    std::vector<sls::Source> sources;
+    if (!sls::ParseSourceList(source_list, &sources) || sources.empty())
+      return {Preferences{}, PreferencesLoadStatus::kDefaultCorrupt, "Invalid provider list."};
+    serialized.erase(at9);
+    serialized.replace(0, 9, serialized.find("\nsls_source_url=") != std::string::npos ? "version=8" : "version=7");
+  }
   if (serialized.rfind("version=8\n", 0) == 0) {
     const auto marker = serialized.rfind("\nsls_source_url=");
     if (marker == std::string::npos || serialized.back() != '\n')
@@ -131,6 +157,7 @@ PreferencesLoadResult PreferencesStore::Load() const {
                 preferences.steam_stay_signed_in = stay == 1;
                 preferences.beta_updates = beta_updates;
                 preferences.sls_source_url = source_url;
+                preferences.sls_source_list = source_list;
                 return PreferencesLoadResult{preferences, PreferencesLoadStatus::kLoaded, std::string()};
               }
   }
@@ -143,6 +170,11 @@ Result<void> PreferencesStore::Save(const Preferences& preferences) const {
   if (!preferences.sls_source_url.empty() &&
       !sls::ValidateSource({"configured", "Configured source", preferences.sls_source_url}))
     return Result<void>::Failure(StorageError::kInvalidData, "Invalid manifest source URL.");
+  std::vector<sls::Source> sources;
+  if (!preferences.sls_source_list.empty() &&
+      (!sls::ParseSourceList(preferences.sls_source_list, &sources) || sources.empty() ||
+       sls::SerializeSourceList(sources) != preferences.sls_source_list))
+    return Result<void>::Failure(StorageError::kInvalidData, "Invalid SLS provider list.");
   const auto ready=storage_.EnsureRootDirectory();
   if(!ready.ok()) return ready;
   std::string text = std::string(preferences.sls_source_url.empty() ? "version=7\nreduce_motion=" : "version=8\nreduce_motion=") + (preferences.reduce_motion ? "1" : "0") +
@@ -153,6 +185,17 @@ Result<void> PreferencesStore::Save(const Preferences& preferences) const {
                            "\nsteam_stay_signed_in=" + (preferences.steam_stay_signed_in ? "1" : "0") +
                            "\nbeta_updates=" + (preferences.beta_updates ? "1" : "0") + "\n";
   if (!preferences.sls_source_url.empty()) text += "sls_source_url=" + preferences.sls_source_url + "\n";
+  if (!preferences.sls_source_list.empty()) {
+    text.replace(0, 9, "version=9");
+    static constexpr char kHex[] = "0123456789abcdef";
+    std::string encoded;
+    encoded.reserve(preferences.sls_source_list.size() * 2);
+    for (const unsigned char byte : preferences.sls_source_list) {
+      encoded.push_back(kHex[byte >> 4]);
+      encoded.push_back(kHex[byte & 15]);
+    }
+    text += "sls_sources_hex=" + encoded + "\n";
+  }
   return storage_.WriteAtomic(kPreferencesPath, Bytes(text.begin(), text.end()));
 }
 
