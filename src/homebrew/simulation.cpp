@@ -5176,9 +5176,9 @@ void Simulation::rebuild_view() {
             add("settings-signout", RowKind::Action, "Sign out", "signout-confirm").dangerous = true;
         section = "Library";
         if (live()) {
-            auto& source = add("settings-manifest-source", RowKind::Action, "Manifest source", "manifest-source-edit");
-            source.value = state_.sls_source_url.empty() ? "Off" : "Configured";
-            source.subtitle = "Optional HTTPS URL with {appid}. Steam still checks access. Clear the URL to turn off.";
+            auto& source = add("settings-manifest-source", RowKind::Action, "SLS Den · Manifest source", "manifest-source-edit");
+            source.value = state_.sls_source_url.empty() ? "Off" : "1 custom source";
+            source.subtitle = "Edit HTTPS source template ({appid}). Steam verifies depot access. Multi-source manager: in development.";
         }
         {
             // Windows games in a drive's playden/import or the console drop folder: the Import sheet.
