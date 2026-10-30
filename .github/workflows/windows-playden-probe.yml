@@ -22,7 +22,7 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force windows-playden/out | Out-Null
-          cl /nologo /std:c++20 /EHsc /I src /I third_party/ps5-homebrew-ui/src /I third_party/stb /c src/homebrew/simulation.cpp /Fo:windows-playden/out/simulation.obj 2>&1 | Tee-Object windows-playden/out/compiler-output.txt
+          clang-cl /nologo /std:c++20 /EHsc /I src /I third_party/ps5-homebrew-ui/src /I third_party/stb /c src/homebrew/simulation.cpp /Fo:windows-playden/out/simulation.obj 2>&1 | Tee-Object windows-playden/out/compiler-output.txt
           if ($LASTEXITCODE -ne 0) {
             Write-Host "Real Playden host requires Windows compatibility work; see compiler output."
             exit 1
