@@ -356,6 +356,13 @@ int main() {
             playden::Storage storage(user_root);
             return playden::PreferencesStore(storage).Load().preferences.sls_source_url;
         }, paths.trust_store);
+        install_runner.SetManifestSources([user_root] {
+            playden::Storage storage(user_root);
+            const auto config = playden::PreferencesStore(storage).Load().preferences.sls_source_list;
+            std::vector<playden::sls::Source> sources;
+            playden::sls::ParseSourceList(config, &sources);
+            return sources;
+        });
         install_runner.SetTuning([root = paths.title_root] {
             // A developer's tuning file wins over the setting.
             const auto file = root + "/dev/download-tuning.txt";
