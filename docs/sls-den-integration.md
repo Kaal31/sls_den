@@ -21,3 +21,7 @@ One source template can currently be edited in the native UI. Multi-source fallb
 See [mock-console harness](mock-console-harness.md) for temporary storage, fixture installation/resume, registration and launch-preparation tests, and [PS4 feasibility](ps4-feasibility.md) for the separate port assessment.
 
 No real Steam game transfer, PS5 title registration or Wine/game execution was tested on console hardware. Host tests and cross-builds are not console acceptance.
+
+## Multi-source configuration model (October 31)
+
+`src/sls/source_list.{h,cpp}` adds a conservative, bounded provider list serializer/parser. It supports up to 16 ordered entries, custom HTTPS templates containing `{appid}`, enable flags, and duplicate-ID rejection. Its data-only round-trip test is registered as `sls_source_list` with CTest. It does not store credentials or introduce unverified built-in provider endpoints. The existing one-source Preferences/Settings UI is unchanged; persistence of a full provider list, UI management, archive/provider protocols and live network tests remain to be implemented. This commit does not change Steam entitlements or install-time depot selection.
