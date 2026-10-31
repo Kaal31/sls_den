@@ -1,0 +1,25 @@
+name: Windows Managed Filesystem Fast Test
+on:
+  push:
+    branches: [windows-preview]
+    paths:
+      - 'windows-playden/managed_*'
+      - 'src/platform/managed_directory.h'
+      - '.github/workflows/windows-managed-fs.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  smoke:
+    runs-on: windows-2022
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ilammy/msvc-dev-cmd@v1
+      - name: Compile and run offline Windows filesystem policy test
+        shell: pwsh
+        run: |
+          clang-cl /nologo /std:c++20 /EHsc /I src windows-playden/managed_filesystem_smoke.cpp windows-playden/managed_directory_windows.cpp windows-playden/managed_file_lock_windows.cpp /Fe:managed_filesystem_smoke.exe
+          if ($LASTEXITCODE -ne 0) { throw "Windows managed filesystem compilation failed" }
+          & ./managed_filesystem_smoke.exe
+          if ($LASTEXITCODE -ne 0) { throw "Windows managed filesystem test failed" }
