@@ -91,7 +91,6 @@ void StartupError(const std::string& message) {
  Log("ERROR: "+message);
  std::fprintf(stderr,"SLS Den Windows: %s\\n",message.c_str());
 #ifdef _WIN32
- std::string display=message+"\\n\\nLog: "+startup_log.u8string();
  // Do not round-trip a Unicode log path through the Windows ANSI code page.
  std::wstring display_w=L"SLS Den startup failed. See the startup log:\n";
  display_w+=startup_log.wstring();
