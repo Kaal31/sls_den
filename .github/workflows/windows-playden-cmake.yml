@@ -47,15 +47,34 @@ jobs:
       - name: Configure native Playden desktop host (experimental)
         shell: pwsh
         run: |
-          cmake -S . -B build/windows-playden -G Ninja -DCMAKE_MAKE_PROGRAM=ninja -DCMAKE_C_COMPILER=clang-cl -DCMAKE_CXX_COMPILER=clang-cl -DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake -DBUILD_TESTING=OFF -DPLAYDEN_PLATFORM_PS5=OFF -DCMAKE_BUILD_TYPE=Debug 2>&1 | Tee-Object windows-playden/cmake-configure.log
+          cmake -S . -B build/windows-playden -G Ninja -DCMAKE_MAKE_PROGRAM=ninja -DCMAKE_C_COMPILER=clang-cl -DCMAKE_CXX_COMPILER=clang-cl -DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake -DBUILD_TESTING=OFF -DPLAYDEN_PLATFORM_PS5=OFF -DCMAKE_BUILD_TYPE=Release 2>&1 | Tee-Object windows-playden/cmake-configure.log
           if ($LASTEXITCODE -ne 0) { throw "Windows host CMake configuration has portability blockers" }
       - name: Build and smoke-test real offline Playden UI target
         shell: pwsh
         run: |
           cmake --build build/windows-playden --target playden-windows-offline --parallel 2 2>&1 | Tee-Object windows-playden/offline-build.log
           if ($LASTEXITCODE -ne 0) { throw "Real Windows offline Playden UI build has compatibility blockers" }
+          $env:PATH = "C:\vcpkg\installed\x64-windows\bin;" + $env:PATH
           & build/windows-playden/playden-windows-offline.exe --self-test
           if ($LASTEXITCODE -ne 0) { throw "Windows Playden offline startup smoke failed" }
+      - name: Package actual Windows Playden offline UI
+        shell: pwsh
+        run: |
+          $dist = "windows-playden/dist"
+          New-Item -ItemType Directory -Force $dist | Out-Null
+          Copy-Item "build/windows-playden/playden-windows-offline.exe" $dist
+          if (Test-Path "build/windows-playden/homebrew-assets") {
+            Copy-Item "build/windows-playden/homebrew-assets" "$dist/homebrew-assets" -Recurse
+          }
+          Copy-Item "fixtures/ui-comparison" "$dist/fixtures" -Recurse
+          Get-ChildItem "C:\vcpkg\installed\x64-windows\bin" -Filter "*.dll" |
+            Copy-Item -Destination $dist
+          Set-Content -Path "$dist/README.txt" -Value "SLS Den Windows offline Playden UI. Launch playden-windows-offline.exe. Does not contact Steam, download, or install games."
+      - uses: actions/upload-artifact@v4
+        with:
+          name: playden-windows-real-ui-offline
+          path: windows-playden/dist/**
+          if-no-files-found: error
       - name: Compile real Playden Windows desktop target
         shell: pwsh
         run: |
