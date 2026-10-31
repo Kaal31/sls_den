@@ -38,6 +38,7 @@ if(WIN32 AND NOT PLAYDEN_PLATFORM_PS5)
         "${CMAKE_SOURCE_DIR}/windows-playden/ntfs_security.cpp")
     target_include_directories(playden_ntfs_security PUBLIC
         "${CMAKE_SOURCE_DIR}/windows-playden")
+    target_compile_features(playden_ntfs_security PUBLIC cxx_std_17)
     target_link_libraries(playden_ntfs_security PUBLIC advapi32)
     set(playden_storage_sources "${CMAKE_SOURCE_DIR}/windows-playden/storage_windows.cpp")
 else()
