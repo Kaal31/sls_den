@@ -1,6 +1,11 @@
 #include "steam/backend/http_client.h"
 
+#ifdef _WIN32
+#include <string.h>
+#define strncasecmp _strnicmp
+#else
 #include <strings.h>
+#endif
 
 #include "steam/backend/native_network.h"
 #include "steam/backend/native_resolution_cache.h"
