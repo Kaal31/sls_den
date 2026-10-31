@@ -188,6 +188,14 @@ if(PLAYDEN_PLATFORM_PS5)
     target_compile_options(playden_local_copy PRIVATE -fno-exceptions -fno-rtti)
 endif()
 
+if(WIN32 AND NOT PLAYDEN_PLATFORM_PS5)
+    # Windows native curl uses Schannel system trust. No Unix PEM staging.
+    # HTTP and WebSocket clients require an actual Schannel backend when empty.
+    set(PLAYDEN_STEAM_CA_BUNDLE "" CACHE INTERNAL "Windows system TLS trust" FORCE)
+    set(PLAYDEN_STEAM_LINK_ARCHIVES "" CACHE INTERNAL "Native Windows curl target" FORCE)
+    set(playden_staged_ca "")
+    add_custom_target(playden_steam_trust)
+else()
 set(PLAYDEN_STEAM_CA_BUNDLE "${PLAYDEN_STEAM_PREFIX}/cacert.pem"
     CACHE INTERNAL "Verified Steam HTTPS trust bundle")
 set(PLAYDEN_STEAM_LINK_ARCHIVES
@@ -206,6 +214,8 @@ add_custom_command(OUTPUT "${playden_staged_ca}"
         "${PLAYDEN_STEAM_CA_BUNDLE}" "${playden_staged_ca}"
     DEPENDS "${PLAYDEN_STEAM_CA_BUNDLE}" VERBATIM)
 add_custom_target(playden_steam_trust ALL DEPENDS "${playden_staged_ca}")
+
+endif()
 
 function(playden_register_steam_backend_tests)
     if(NOT BUILD_TESTING OR PLAYDEN_PLATFORM_PS5)
