@@ -5,6 +5,7 @@
 #include "homebrew/simulation.hpp"
 #include "gfx/gl.hpp"
 #include "gfx/gl_program.hpp"
+#define SDL_MAIN_HANDLED
 #include <SDL.h>
 #include <algorithm>
 #include <chrono>
@@ -74,6 +75,7 @@ int main(int argc,char** argv){
    std::puts("PASS: native Windows Playden offline simulation initialized");
    return 0;
  }
+ SDL_SetMainReady();
  if(SDL_Init(SDL_INIT_VIDEO|SDL_INIT_GAMECONTROLLER)!=0){
    std::fprintf(stderr,"SDL init failed: %s\n",SDL_GetError());return 1;
  }
