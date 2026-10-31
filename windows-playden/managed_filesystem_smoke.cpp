@@ -1,5 +1,6 @@
 #include "platform/managed_directory.h"
 #include "platform/managed_file_lock.h"
+#include "ntfs_security.hpp"
 #include <filesystem>
 #include <fstream>
 #include <io.h>
@@ -22,7 +23,22 @@ int main() {
  if(ManagedFileLock::Acquire(*approved,"safe.txt",LockMode::kPublisher))return 6;
  if(approved->CreateExclusiveFile("creds.txt",0600)>=0)return 7;
  if(fs::exists(root/"creds.txt"))return 8;
+ const auto secure=root/"private";
+ if(!playden::windows::EnsurePrivateDirectory(secure))return 9;
+ auto private_dir=ManagedDirectory::Open(secure,DirectoryPolicy::kPrivate);
+ if(!private_dir||!private_dir->Validate())return 10;
+ int lock_fd=private_dir->CreateExclusiveFile("lease.lock",0600);
+ if(lock_fd<0)return 11;
+ _close(lock_fd);
+ auto lease=ManagedFileLock::Acquire(*private_dir,"lease.lock",LockMode::kPublisher);
+ if(!lease||!lease->Validate(*private_dir,"lease.lock"))return 12;
+ if(ManagedFileLock::Acquire(*private_dir,"lease.lock",LockMode::kPublisher))return 13;
+ lease.reset();
+ if(!ManagedFileLock::Acquire(*private_dir,"lease.lock",LockMode::kReader))return 14;
+ if(!private_dir->RemoveRegularFile("lease.lock"))return 15;
+ if(private_dir->Sync())return 16;
+ private_dir.reset();
  fs::remove_all(root,ec);
- std::cout<<"PASS: offline filesystem read-only with private writes locked\n";
+ std::cout<<"PASS: offline reads, protected NTFS writes and exclusive Win32 locks\n";
  return 0;
 }
