@@ -83,9 +83,15 @@ target_include_directories(playden_runtime_install_service PUBLIC "${CMAKE_SOURC
 target_compile_features(playden_runtime_install_service PUBLIC cxx_std_17)
 target_link_libraries(playden_runtime_install_service PUBLIC playden_runtime_installs)
 
+if(WIN32 AND NOT PLAYDEN_PLATFORM_PS5)
+    add_library(playden_managed_directory STATIC
+        "${CMAKE_SOURCE_DIR}/windows-playden/managed_directory_windows.cpp"
+        "${CMAKE_SOURCE_DIR}/windows-playden/managed_file_lock_windows.cpp")
+else()
 add_library(playden_managed_directory STATIC
     "${CMAKE_SOURCE_DIR}/src/platform/managed_directory.cpp"
     "${CMAKE_SOURCE_DIR}/src/platform/managed_file_lock.cpp")
+endif()
 target_include_directories(playden_managed_directory PUBLIC "${CMAKE_SOURCE_DIR}/src")
 target_compile_features(playden_managed_directory PUBLIC cxx_std_17)
 target_link_libraries(playden_storage PUBLIC playden_managed_directory)
