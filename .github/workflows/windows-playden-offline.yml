@@ -73,7 +73,16 @@ jobs:
           Copy-Item fixtures/ui-comparison windows-playden/offline-dist/fixtures -Recurse
           Get-ChildItem "C:\vcpkg\installed\x64-windows\bin" -Filter "*.dll" |
             Copy-Item -Destination windows-playden/offline-dist
-          Set-Content windows-playden/offline-dist/README.txt "SLS Den Windows - real Playden offline simulation UI. Open playden-windows-offline.exe. No Steam login, network requests, or game installation."
+          @"
+          SLS Den Windows - real Playden offline UI (simulation only).
+          Extract the ENTIRE archive; keep the DLLs, homebrew-assets and fixtures beside the exe.
+          Double-click playden-windows-offline.exe. If the window closes, look for:
+            sls-den-startup.log in the same folder as the .exe
+          If the folder is read-only, the log falls back to the Windows TEMP folder.
+          For a persistent console error message, open Command Prompt in this directory and run:
+            playden-windows-offline.exe
+          No Steam login, downloads, or game installation.
+          "@ | Set-Content windows-playden/offline-dist/README.txt
       - name: Verify packaged offline dependencies and UI assets
         shell: pwsh
         run: |
