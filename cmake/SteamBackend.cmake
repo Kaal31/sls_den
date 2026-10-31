@@ -36,6 +36,8 @@ if(PLAYDEN_PLATFORM_PS5)
     target_compile_options(playden_steam_library PRIVATE -fno-exceptions -fno-rtti)
 endif()
 if(WIN32 AND NOT PLAYDEN_PLATFORM_PS5)
+    find_package(MbedTLS CONFIG REQUIRED)
+    target_link_libraries(playden_steam_auth PUBLIC MbedTLS::mbedcrypto)
     # Windows-only: use native Windows curl libraries, never Unix .a archives.
     # Live transport is compiled only for explicit opt-in builds. The default
     # Windows mode remains offline and does not make Steam requests.
