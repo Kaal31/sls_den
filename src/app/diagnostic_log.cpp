@@ -1,6 +1,9 @@
 #include "app/diagnostic_log.h"
 
 #include <sys/stat.h>
+#ifdef _WIN32
+#include <direct.h>
+#endif
 
 #include <cerrno>
 #include <chrono>
@@ -53,7 +56,11 @@ std::string FormatLogTimestamp(std::int64_t unix_seconds) {
 }
 
 bool AppendLogLine(const std::string& directory, const std::string& file, const std::string& line, std::size_t max_bytes) {
+#ifdef _WIN32
+  _mkdir(directory.c_str());
+#else
   mkdir(directory.c_str(), 0777);
+#endif
   const auto path = directory + "/" + file;
   struct stat info {};
   if (stat(path.c_str(), &info) == 0 && static_cast<std::size_t>(info.st_size) > max_bytes) {
