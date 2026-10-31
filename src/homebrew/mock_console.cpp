@@ -7,7 +7,11 @@
 #include <fstream>
 #include <iterator>
 #include <stdexcept>
+#ifndef _WIN32
 #include <unistd.h>
+#else
+#include <random>
+#endif
 
 namespace playden::homebrew {
 namespace fs = std::filesystem;
@@ -66,9 +70,25 @@ MockConsole::MockConsole(const fs::path& fixture) {
         if (entry.payload.empty() || Find(entry.game.id)) throw std::runtime_error("empty or duplicate fixture");
         fixtures_.push_back(std::move(entry));
     }
+#ifdef _WIN32
+    // Use an isolated directory created atomically; never share real Playden data.
+    bool created = false;
+    for (unsigned attempt = 0; attempt < 32 && !created; ++attempt) {
+        const auto name = "playden-mock-ps5-" + std::to_string(std::random_device{}()) +
+                          "-" + std::to_string(attempt);
+        const auto candidate = fs::temp_directory_path() / name;
+        std::error_code ec;
+        if (fs::create_directory(candidate, ec)) {
+            root_ = candidate.string();
+            created = true;
+        }
+    }
+    if (!created) throw std::runtime_error("cannot create temporary mock console");
+#else
     auto pattern = (fs::canonical(fs::temp_directory_path()) / "playden-mock-ps5-XXXXXX").string();
     if (!::mkdtemp(pattern.data())) throw std::runtime_error("cannot create temporary mock console");
     root_ = pattern;
+#endif
     try {
         Write(Path("/data/playden/kits/mock/template/system.reg"), "MOCK BOTTLE ONLY\n");
         fs::create_directories(Path("/data/homebrew"));
