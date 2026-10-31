@@ -107,6 +107,15 @@ int main(int argc,char** argv){
    if(window)SDL_DestroyWindow(window);
    SDL_Quit();return 1;
  }
+#ifdef _WIN32
+ glewExperimental = GL_TRUE;
+ const GLenum glew_result = glewInit();
+ if (glew_result != GLEW_OK) {
+   std::fprintf(stderr,"OpenGL entry-point loading failed: %s\n",glewGetErrorString(glew_result));
+   SDL_GL_DeleteContext(context); SDL_DestroyWindow(window); SDL_Quit(); return 1;
+ }
+ glGetError(); // GLEW may leave GL_INVALID_ENUM on core-profile contexts.
+#endif
  SDL_GL_SetSwapInterval(options.headless?0:1);
  hui::gfx::set_glsl_prefix("#version 410 core\n");
  int exit_code=0;
