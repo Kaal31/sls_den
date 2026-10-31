@@ -22,7 +22,7 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force build/windows-sls | Out-Null
           $sources = @('src/sls/manifest_metadata.cpp', 'src/sls/source_catalog.cpp', 'src/sls/source_resolver.cpp', 'src/sls/source_list.cpp')
-          foreach ($case in @('sls_install_metadata', 'sls_source_resolver', 'sls_authorized_depot_plan', 'sls_source_list', 'sls_manifest_metadata')) {
+          foreach ($case in @('sls_windows_integration', 'sls_install_metadata', 'sls_source_resolver', 'sls_authorized_depot_plan', 'sls_source_list', 'sls_manifest_metadata')) {
             & clang-cl /nologo /std:c++20 /EHsc /I src "tests/${case}_test.cpp" $sources /Fe:"build/windows-sls/${case}.exe"
             if ($LASTEXITCODE -ne 0) { throw "Compilation failed: $case" }
           }
