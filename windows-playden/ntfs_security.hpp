@@ -10,6 +10,7 @@
 #include <optional>
 namespace playden::windows {
 bool EnsurePrivateDirectory(const std::filesystem::path& path);
+bool IsPrivateDirectory(const std::filesystem::path& path);
 bool IsPrivateFile(const std::filesystem::path& path);
 bool CreatePrivateFile(const std::filesystem::path& path);
 class PrivateFileLock {
