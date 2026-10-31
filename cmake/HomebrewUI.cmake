@@ -729,3 +729,10 @@ if(BUILD_TESTING)
     set_tests_properties(ui_comparison_fixture PROPERTIES
         ENVIRONMENT "PYTHONDONTWRITEBYTECODE=1")
 endif()
+
+# Host artifact hash requires Mbed TLS headers in native Windows builds.
+if(WIN32 AND TARGET playden_runtime_artifact_hash)
+    target_include_directories(playden_runtime_artifact_hash PRIVATE
+        "${_VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/include")
+    target_link_libraries(playden_runtime_artifact_hash PUBLIC MbedTLS::mbedcrypto)
+endif()
