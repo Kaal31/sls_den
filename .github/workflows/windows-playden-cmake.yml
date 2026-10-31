@@ -4,6 +4,7 @@ on:
     branches: [windows-preview]
     paths:
       - 'cmake/HomebrewUI.cmake'
+      - 'cmake/PlaydenCore.cmake'
       - 'cmake/SteamBackend.cmake'
       - 'src/homebrew/host.cpp'
       - 'src/steam/backend/http_client.cpp'
