@@ -7,6 +7,9 @@
 #include "gfx/gl_program.hpp"
 #define SDL_MAIN_HANDLED
 #include <SDL.h>
+#ifdef _WIN32
+#include <windows.h>
+#endif
 #include <algorithm>
 #include <chrono>
 #include <cstdio>
@@ -63,6 +66,16 @@ int main(int argc,char** argv){
    std::fprintf(stderr,"usage: playden-windows-offline [--scenario ID] [--self-test] [--capture PNG] [--snapshot JSON] [--headless]\n");
    return 2;
  }
+#ifdef _WIN32
+ wchar_t executable[32768]{};
+ if(GetModuleFileNameW(nullptr,executable,32768)>0){
+   const auto dir=fs::path(executable).parent_path();
+   if(!fs::exists(options.assets)&&fs::exists(dir/"homebrew-assets"))
+     options.assets=dir/"homebrew-assets";
+   if(!fs::exists(options.fixtures)&&fs::exists(dir/"fixtures"))
+     options.fixtures=dir/"fixtures";
+ }
+#endif
  // The simulation model takes no real Steam credentials or network transport.
  playden::homebrew::Simulation simulation(options.fixtures,{},playden::homebrew::ModelMode::Simulation);
  if(!options.scenario.empty()&&!simulation.scenario(options.scenario)){
