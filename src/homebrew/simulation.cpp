@@ -80,7 +80,12 @@ struct StringBuilder {
 };
 
 std::string read_file(const std::filesystem::path& path) {
+#ifdef _WIN32
+    // Windows paths may contain characters unavailable in the active ANSI code page.
+    std::FILE* input = _wfopen(path.c_str(), L"rb");
+#else
     std::FILE* input = std::fopen(path.string().c_str(), "rb");
+#endif
     if (!input) return {};
     std::string result;
     char buffer[4096];
