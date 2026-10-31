@@ -9,6 +9,7 @@ on:
       - 'src/homebrew/host.cpp'
       - 'src/steam/backend/http_client.cpp'
       - 'src/steam/backend/ws_client.cpp'
+      - 'src/runtime/artifact_hash.cpp'
       - 'windows-playden/**'
       - '.github/workflows/windows-playden-cmake.yml'
   workflow_dispatch:
