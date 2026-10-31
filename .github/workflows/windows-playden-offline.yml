@@ -58,6 +58,27 @@ jobs:
           Get-ChildItem "C:\vcpkg\installed\x64-windows\bin" -Filter "*.dll" |
             Copy-Item -Destination windows-playden/offline-dist
           Set-Content windows-playden/offline-dist/README.txt "SLS Den Windows - real Playden offline simulation UI. Open playden-windows-offline.exe. No Steam login, network requests, or game installation."
+      - name: Verify packaged offline dependencies and UI assets
+        shell: pwsh
+        run: |
+          $dir = "windows-playden/offline-dist"
+          $required = @(
+            "$dir/playden-windows-offline.exe",
+            "$dir/homebrew-assets/fonts/barlow-regular.huifont",
+            "$dir/homebrew-assets/fonts/barlow-semibold.huifont",
+            "$dir/homebrew-assets/fonts/barlow-condensed-semibold.huifont",
+            "$dir/homebrew-assets/fonts/noto-greek-fallback.huifont",
+            "$dir/fixtures/catalog.json",
+            "$dir/fixtures/scenarios.json",
+            "$dir/SDL2.dll"
+          )
+          foreach ($item in $required) {
+            if (-not (Test-Path $item)) { throw "Offline UI package missing: $item" }
+          }
+          $deps = & dumpbin /dependents "$dir/playden-windows-offline.exe"
+          if ($LASTEXITCODE -ne 0) { throw "Cannot inspect Windows executable import table" }
+          $deps | Set-Content "windows-playden/offline-dll-dependencies.txt"
+          Write-Host "Packaged offline UI assets verified"
       - uses: actions/upload-artifact@v4
         with:
           name: playden-windows-real-ui-offline
@@ -66,4 +87,6 @@ jobs:
         if: always()
         with:
           name: windows-playden-offline-build-logs
-          path: windows-playden/offline-*.log
+          path: |
+            windows-playden/offline-*.log
+            windows-playden/offline-dll-dependencies.txt
