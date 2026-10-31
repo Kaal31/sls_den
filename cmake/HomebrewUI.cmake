@@ -732,7 +732,9 @@ endif()
 
 # Host artifact hash requires Mbed TLS headers in native Windows builds.
 if(WIN32 AND TARGET playden_runtime_artifact_hash)
-    target_include_directories(playden_runtime_artifact_hash PRIVATE
-        "${_VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/include")
+    target_compile_features(playden_runtime_artifact_hash PUBLIC cxx_std_17)
+    if(NOT TARGET MbedTLS::mbedcrypto)
+        message(FATAL_ERROR "Windows artifact hash requires MbedTLS::mbedcrypto")
+    endif()
     target_link_libraries(playden_runtime_artifact_hash PUBLIC MbedTLS::mbedcrypto)
 endif()
