@@ -75,7 +75,7 @@ int OpenFile(const std::filesystem::path& path) {
   auto directory = platform::ManagedDirectory::Open(
       absolute.parent_path(), platform::DirectoryPolicy::kApprovedTree);
   if (!directory) return -1;
-  return directory->OpenRegularFile(absolute.filename().string());
+  return directory->OpenRegularFile(absolute.filename().u8string());
 }
 
 }  // namespace
