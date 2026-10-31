@@ -148,6 +148,12 @@ std::optional<Options> parse_options(int argc, char** argv) {
     // Windows preview is offline by default. Live Steam is an explicit opt-in.
     if (!options.network_opt_in && !options.simulation && !options.mock_console)
         options.mock_console = options.simulation = true;
+    if (options.network_opt_in) {
+        // Do not expose Steam credentials until native Windows private storage
+        // and publication leases have passed security validation.
+        std::fprintf(stderr, "Windows live networking is disabled until secure private storage is implemented.\\n");
+        return std::nullopt;
+    }
     if (options.network_opt_in && (options.simulation || options.mock_console)) {
         std::fprintf(stderr, "--live-network cannot be combined with offline simulation\n");
         return std::nullopt;
