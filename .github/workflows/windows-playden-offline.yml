@@ -48,6 +48,10 @@ jobs:
           $env:PATH = "C:\vcpkg\installed\x64-windows\bin;" + $env:PATH
           & build/windows-offline/playden-windows-offline.exe --self-test
           if ($LASTEXITCODE -ne 0) { throw "Native Playden offline simulation self-test failed" }
+          & build/windows-offline/playden-windows-offline.exe --scenario first-run --self-test
+          if ($LASTEXITCODE -ne 0) { throw "Windows first-run scenario initialization failed" }
+          & build/windows-offline/playden-windows-offline.exe --scenario offline --self-test
+          if ($LASTEXITCODE -ne 0) { throw "Windows offline scenario initialization failed" }
       - name: Bundle actual Playden Windows application
         shell: pwsh
         run: |
