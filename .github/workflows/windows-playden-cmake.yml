@@ -24,7 +24,7 @@ jobs:
       - name: Install Windows SDL2 and OpenGL development headers
         shell: pwsh
         run: |
-          C:\vcpkg\vcpkg.exe install sdl2:x64-windows opengl-registry:x64-windows curl[schannel]:x64-windows
+          C:\vcpkg\vcpkg.exe install sdl2:x64-windows opengl-registry:x64-windows curl:x64-windows
       - name: Configure native Playden desktop host (experimental)
         shell: pwsh
         run: |
