@@ -5,6 +5,10 @@
 #include <string>
 #include <vector>
 #include <sys/types.h>
+#ifdef _WIN32
+using uid_t = unsigned int;
+using mode_t = unsigned int;
+#endif
 namespace playden::runtime {
 // Folders of a private tree that may also be 0711 (kPrivateTraversable): others can
 // pass through them, never list them. Absolute paths at or under private_root; the
