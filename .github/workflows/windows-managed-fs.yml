@@ -46,7 +46,7 @@ jobs:
       - name: Compile and run offline Windows filesystem policy test
         shell: pwsh
         run: |
-          clang-cl /nologo /std:c++20 /EHsc /I src windows-playden/managed_filesystem_smoke.cpp windows-playden/managed_directory_windows.cpp windows-playden/managed_file_lock_windows.cpp /Fe:managed_filesystem_smoke.exe
+          clang-cl /nologo /std:c++20 /EHsc /I src windows-playden/managed_filesystem_smoke.cpp windows-playden/managed_directory_windows.cpp windows-playden/managed_file_lock_windows.cpp windows-playden/ntfs_security.cpp advapi32.lib /Fe:managed_filesystem_smoke.exe
           if ($LASTEXITCODE -ne 0) { throw "Windows managed filesystem compilation failed" }
           & ./managed_filesystem_smoke.exe
           if ($LASTEXITCODE -ne 0) { throw "Windows managed filesystem test failed" }
