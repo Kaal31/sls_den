@@ -1,3 +1,8 @@
+#ifdef _WIN32
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#endif
 #include "steam/backend/http_client.h"
 
 #ifdef _WIN32
