@@ -1,3 +1,8 @@
+#ifdef _WIN32
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#endif
 #include "steam/backend/ws_client.h"
 
 #include "steam/backend/native_network.h"
