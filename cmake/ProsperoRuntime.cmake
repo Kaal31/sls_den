@@ -142,8 +142,18 @@ target_compile_features(playden_runtime_artifact_hash PUBLIC cxx_std_17)
 target_link_libraries(playden_runtime_artifact_hash PRIVATE playden_curl_8_22 playden_managed_directory)
 # gbe_fork Steamworks emulation in a game's folder (runtime/steamworks).
 # Also SteamStub unpacking of a game's program (runtime/steam_stub), with mbedtls through curl.
-add_library(playden_runtime_steamworks STATIC "${CMAKE_SOURCE_DIR}/src/runtime/steamworks.cpp"
-    "${CMAKE_SOURCE_DIR}/src/runtime/dotnet_heap.cpp" "${CMAKE_SOURCE_DIR}/src/runtime/steam_stub.cpp")
+if(WIN32 AND PLAYDEN_WINDOWS_OFFLINE_ONLY)
+    # The desktop simulation must not compile or execute console game-patching
+    # services (POSIX file APIs, SteamStub unpacking, emulator replacement).
+    set(playden_steamworks_sources
+        "${CMAKE_SOURCE_DIR}/windows-playden/offline_runtime_modification.cpp")
+else()
+    set(playden_steamworks_sources
+        "${CMAKE_SOURCE_DIR}/src/runtime/steamworks.cpp"
+        "${CMAKE_SOURCE_DIR}/src/runtime/dotnet_heap.cpp"
+        "${CMAKE_SOURCE_DIR}/src/runtime/steam_stub.cpp")
+endif()
+add_library(playden_runtime_steamworks STATIC ${playden_steamworks_sources})
 target_compile_features(playden_runtime_steamworks PUBLIC cxx_std_17)
 target_include_directories(playden_runtime_steamworks PUBLIC "${CMAKE_SOURCE_DIR}/src")
 target_link_libraries(playden_runtime_steamworks PUBLIC playden_runtime_artifact_hash)
