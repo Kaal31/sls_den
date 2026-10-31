@@ -426,6 +426,26 @@ add_dependencies(playden-homebrew playden_homebrew_assets playden_steam_trust)
 set_target_properties(playden-homebrew PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
 
+if(WIN32)
+    # Standalone desktop UI build: real Playden renderer and simulation, no
+    # Steam auth, install runner, root elevation or PS5 execution path.
+    add_executable(playden-windows-offline
+        "${CMAKE_SOURCE_DIR}/windows-playden/offline_host.cpp")
+    target_compile_features(playden-windows-offline PRIVATE cxx_std_20)
+    target_compile_definitions(playden-windows-offline PRIVATE
+        SDL_MAIN_HANDLED=1
+        GL_GLEXT_PROTOTYPES=1
+        NOMINMAX=1 WIN32_LEAN_AND_MEAN=1
+        PLAYDEN_HOMEBREW_ASSETS_DIR="${playden_homebrew_assets}"
+        PLAYDEN_HOMEBREW_FIXTURES_DIR="${CMAKE_SOURCE_DIR}/fixtures/ui-comparison")
+    target_link_libraries(playden-windows-offline PRIVATE
+        playden_homebrew_ui playden_homebrew_model
+        PkgConfig::SDL2 OpenGL::GL)
+    add_dependencies(playden-windows-offline playden_homebrew_assets)
+    set_target_properties(playden-windows-offline PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
+endif()
+
 if(BUILD_TESTING)
     add_executable(homebrew_source_settings_test tests/homebrew_source_settings_test.cpp)
     target_link_libraries(homebrew_source_settings_test PRIVATE playden_homebrew_model)
