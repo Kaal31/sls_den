@@ -1,0 +1,69 @@
+name: Windows Real Playden Offline UI
+on:
+  push:
+    branches: [windows-preview]
+    paths:
+      - 'windows-playden/**'
+      - 'src/homebrew/**'
+      - 'src/sls/**'
+      - 'cmake/HomebrewUI.cmake'
+      - 'cmake/PlaydenCore.cmake'
+      - 'cmake/SteamBackend.cmake'
+      - '.github/workflows/windows-playden-offline.yml'
+  workflow_dispatch:
+concurrency:
+  group: playden-offline-${{ github.ref }}
+  cancel-in-progress: true
+permissions:
+  contents: read
+jobs:
+  offline:
+    runs-on: windows-2022
+    timeout-minutes: 35
+    steps:
+      - name: Preserve exact pinned source contents
+        shell: pwsh
+        run: git config --global core.autocrlf false
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: ilammy/msvc-dev-cmd@v1
+      - name: Install offline GUI and crypto dependencies
+        shell: pwsh
+        run: |
+          C:\vcpkg\vcpkg.exe install sdl2:x64-windows opengl-registry:x64-windows mbedtls:x64-windows
+      - name: Configure offline-only Windows Playden
+        shell: pwsh
+        run: |
+          cmake -S . -B build/windows-offline -G Ninja -DCMAKE_MAKE_PROGRAM=ninja -DCMAKE_C_COMPILER=clang-cl -DCMAKE_CXX_COMPILER=clang-cl -DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake -DBUILD_TESTING=OFF -DPLAYDEN_PLATFORM_PS5=OFF -DPLAYDEN_WINDOWS_OFFLINE_ONLY=ON -DCMAKE_BUILD_TYPE=Release 2>&1 | Tee-Object windows-playden/offline-configure.log
+          if ($LASTEXITCODE -ne 0) { throw "Windows offline Playden configure failed" }
+      - name: Build actual Playden renderer and simulation
+        shell: pwsh
+        run: |
+          cmake --build build/windows-offline --target playden-windows-offline --parallel 3 2>&1 | Tee-Object windows-playden/offline-compile.log
+          if ($LASTEXITCODE -ne 0) { throw "Windows offline Playden compile/link failed" }
+      - name: Smoke-test native simulation process
+        shell: pwsh
+        run: |
+          $env:PATH = "C:\vcpkg\installed\x64-windows\bin;" + $env:PATH
+          & build/windows-offline/playden-windows-offline.exe --self-test
+          if ($LASTEXITCODE -ne 0) { throw "Native Playden offline simulation self-test failed" }
+      - name: Bundle actual Playden Windows application
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force windows-playden/offline-dist | Out-Null
+          Copy-Item build/windows-offline/playden-windows-offline.exe windows-playden/offline-dist
+          Copy-Item build/windows-offline/homebrew-assets windows-playden/offline-dist/homebrew-assets -Recurse
+          Copy-Item fixtures/ui-comparison windows-playden/offline-dist/fixtures -Recurse
+          Get-ChildItem "C:\vcpkg\installed\x64-windows\bin" -Filter "*.dll" |
+            Copy-Item -Destination windows-playden/offline-dist
+          Set-Content windows-playden/offline-dist/README.txt "SLS Den Windows - real Playden offline simulation UI. Open playden-windows-offline.exe. No Steam login, network requests, or game installation."
+      - uses: actions/upload-artifact@v4
+        with:
+          name: playden-windows-real-ui-offline
+          path: windows-playden/offline-dist/**
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: windows-playden-offline-build-logs
+          path: windows-playden/offline-*.log
