@@ -80,7 +80,7 @@ void Log(const std::string& message) {
 #ifdef _WIN32
  FILE* file=_wfopen(startup_log.c_str(),L"a");
 #else
- FILE* file=std::fopen(startup_log.string().c_str(),"a");
+ FILE* file=std::fopen(startup_log.u8string().c_str(),"a");
 #endif
  if(!file) return;
  const std::time_t now=std::time(nullptr);
@@ -91,8 +91,11 @@ void StartupError(const std::string& message) {
  Log("ERROR: "+message);
  std::fprintf(stderr,"SLS Den Windows: %s\\n",message.c_str());
 #ifdef _WIN32
- std::string display=message+"\\n\\nLog: "+startup_log.string();
- MessageBoxA(nullptr,display.c_str(),"SLS Den - Startup error",MB_OK|MB_ICONERROR|MB_TOPMOST);
+ std::string display=message+"\\n\\nLog: "+startup_log.u8string();
+ // Do not round-trip a Unicode log path through the Windows ANSI code page.
+ std::wstring display_w=L"SLS Den startup failed. See the startup log:\n";
+ display_w+=startup_log.wstring();
+ MessageBoxW(nullptr,display_w.c_str(),L"SLS Den - Startup error",MB_OK|MB_ICONERROR|MB_TOPMOST);
 #endif
 }
 int main(int argc,char** argv){
@@ -121,8 +124,8 @@ int main(int argc,char** argv){
  }
 #endif
  Log("Resource locations resolved");
- Log("Assets: "+options.assets.string());
- Log("Fixtures: "+options.fixtures.string());
+ Log("Assets: "+options.assets.u8string());
+ Log("Fixtures: "+options.fixtures.u8string());
  Log("Options: self-test="+std::to_string(options.self_test)+" headless="+std::to_string(options.headless));
  // The simulation model takes no real Steam credentials or network transport.
  Log("Constructing Playden simulation");
@@ -210,7 +213,11 @@ int main(int argc,char** argv){
    std::fprintf(stderr,"Playden offline UI: %s\n",error.what());exit_code=1;
  }
  if(!options.snapshot.empty()){
-   std::FILE* file=std::fopen(options.snapshot.string().c_str(),"wb");
+   #ifdef _WIN32
+   std::FILE* file=_wfopen(options.snapshot.c_str(),L"wb");
+#else
+   std::FILE* file=std::fopen(options.snapshot.u8string().c_str(),"wb");
+#endif
    if(!file)exit_code=5;
    else{
      const auto data=simulation.snapshot();
