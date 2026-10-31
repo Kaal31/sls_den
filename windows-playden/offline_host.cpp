@@ -235,7 +235,11 @@ int main(int argc,char** argv){
    }
    SDL_StopTextInput();
  }catch(const std::exception& error) {
+   Log(std::string("ERROR: Renderer/UI exception: ")+error.what());
    std::fprintf(stderr,"Playden offline UI: %s\n",error.what());exit_code=1;
+ }catch(...) {
+   Log("ERROR: Unknown renderer/UI exception");
+   exit_code=1;
  }
  if(!options.snapshot.empty()){
    #ifdef _WIN32
