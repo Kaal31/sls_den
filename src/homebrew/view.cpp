@@ -118,7 +118,11 @@ ui::Theme playden_theme()
 
 bool read_file(const std::filesystem::path &path, std::string *out)
 {
+#ifdef _WIN32
+    std::FILE *file = _wfopen(path.c_str(), L"rb");
+#else
     std::FILE *file = std::fopen(path.string().c_str(), "rb");
+#endif
     if (file == nullptr)
         return false;
 
