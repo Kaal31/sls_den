@@ -121,8 +121,8 @@ int main(int argc,char** argv){
  }
 #endif
  Log("Resource locations resolved");
- Log("Assets: "+options.assets.u8string());
- Log("Fixtures: "+options.fixtures.u8string());
+ Log("Assets: "+options.assets.string());
+ Log("Fixtures: "+options.fixtures.string());
  Log("Options: self-test="+std::to_string(options.self_test)+" headless="+std::to_string(options.headless));
  // The simulation model takes no real Steam credentials or network transport.
  Log("Constructing Playden simulation");
