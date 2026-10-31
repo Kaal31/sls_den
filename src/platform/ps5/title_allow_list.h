@@ -7,6 +7,10 @@
 #include <memory>
 #include <string>
 #include <sys/types.h>
+#ifdef _WIN32
+using uid_t = unsigned int;
+using mode_t = unsigned int;
+#endif
 
 namespace playden::ps5 {
 // Root is reached through Playden's own grant: it keeps a real UID of 0, so it can raise its
