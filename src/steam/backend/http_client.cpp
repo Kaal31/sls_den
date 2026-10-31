@@ -227,8 +227,21 @@ class HttpClient::Impl {
   }
 
   HttpResponse Perform(const HttpRequest& request, const std::atomic<bool>& cancel) {
-    if (!curl_ready_ || !multi_ || ca_bundle_.empty())
+    if (!curl_ready_ || !multi_)
       return {HttpError::kInitializationFailed, 0, {}, {}};
+#ifdef _WIN32
+    // Windows native preview: permit an empty PEM path only with Schannel,
+    // which validates server certificates using the Windows certificate store.
+    // Never silently accept missing trust with an alternative TLS backend.
+    const auto* version = curl_version_info(CURLVERSION_NOW);
+    const bool system_trust = ca_bundle_.empty() && version && version->ssl_version &&
+        std::string_view(version->ssl_version).find("Schannel") != std::string_view::npos;
+    if (ca_bundle_.empty() && !system_trust)
+      return {HttpError::kInitializationFailed, 0, {}, {}};
+#else
+    if (ca_bundle_.empty())
+      return {HttpError::kInitializationFailed, 0, {}, {}};
+#endif
     if (!ValidRequest(request)) return {HttpError::kInvalidRequest, 0, {}, {}};
     if (cancel.load(std::memory_order_acquire)) return {HttpError::kCanceled, 0, {}, {}};
     const auto request_start = Clock::now();
@@ -269,7 +282,7 @@ class HttpClient::Impl {
 #define PLAYDEN_SETOPT(option, value) \
     do { if (curl_easy_setopt(easy, option, value) != CURLE_OK) goto cleanup; } while (false)
     PLAYDEN_SETOPT(CURLOPT_URL, request.url.c_str());
-    PLAYDEN_SETOPT(CURLOPT_CAINFO, ca_bundle_.c_str());
+    if (!ca_bundle_.empty()) PLAYDEN_SETOPT(CURLOPT_CAINFO, ca_bundle_.c_str());
     PLAYDEN_SETOPT(CURLOPT_SSL_VERIFYPEER, 1L);
     PLAYDEN_SETOPT(CURLOPT_SSL_VERIFYHOST, 2L);
     PLAYDEN_SETOPT(CURLOPT_SSLVERSION, CURL_SSLVERSION_TLSv1_2);
