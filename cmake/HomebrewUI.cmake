@@ -71,8 +71,12 @@ add_library(playden_steam_cm_codec STATIC
     "${CMAKE_SOURCE_DIR}/src/runtime/install_script.cpp"
     "${CMAKE_SOURCE_DIR}/src/runtime/msi_package.cpp"
     "${CMAKE_SOURCE_DIR}/src/runtime/burn_bundle.cpp"
-    "${CMAKE_SOURCE_DIR}/src/runtime/redist_install.cpp"
     "${CMAKE_SOURCE_DIR}/src/runtime/game_probe.cpp")
+if(WIN32 AND PLAYDEN_WINDOWS_OFFLINE_ONLY)
+    target_sources(playden_steam_cm_codec PRIVATE "${CMAKE_SOURCE_DIR}/windows-playden/offline_redist_install.cpp")
+else()
+    target_sources(playden_steam_cm_codec PRIVATE "${CMAKE_SOURCE_DIR}/src/runtime/redist_install.cpp")
+endif()
 target_include_directories(playden_steam_cm_codec PUBLIC "${CMAKE_SOURCE_DIR}/src")
 target_include_directories(playden_steam_cm_codec PRIVATE "${PLAYDEN_STB_IMAGE_INCLUDE_DIR}")
 target_compile_features(playden_steam_cm_codec PUBLIC cxx_std_17)
