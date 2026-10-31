@@ -33,12 +33,19 @@ else()
         "${CMAKE_SOURCE_DIR}/src/platform/effective_uid.cpp"
         "${CMAKE_SOURCE_DIR}/src/platform/random_id.cpp")
 endif()
+if(WIN32 AND NOT PLAYDEN_PLATFORM_PS5)
+    set(playden_storage_sources "${CMAKE_SOURCE_DIR}/windows-playden/storage_windows.cpp"
+        "${CMAKE_SOURCE_DIR}/windows-playden/ntfs_security.cpp")
+else()
+    set(playden_storage_sources "${CMAKE_SOURCE_DIR}/src/platform/storage.cpp"
+        "${CMAKE_SOURCE_DIR}/src/platform/durable_storage.cpp")
+endif()
 add_library(playden_storage STATIC
     ${playden_identity_sources}
-    "${CMAKE_SOURCE_DIR}/src/platform/storage.cpp"
-    "${CMAKE_SOURCE_DIR}/src/platform/durable_storage.cpp")
+    ${playden_storage_sources})
 if(WIN32 AND NOT PLAYDEN_PLATFORM_PS5)
-    target_link_libraries(playden_storage PUBLIC bcrypt)
+    target_link_libraries(playden_storage PUBLIC bcrypt advapi32)
+    target_include_directories(playden_storage PRIVATE "${CMAKE_SOURCE_DIR}/windows-playden")
 endif()
 target_include_directories(playden_storage PUBLIC "${CMAKE_SOURCE_DIR}/src")
 target_compile_features(playden_storage PUBLIC cxx_std_17)
