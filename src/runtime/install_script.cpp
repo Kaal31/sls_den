@@ -8,7 +8,9 @@
 #include <cstdlib>
 #include <filesystem>
 #include <fcntl.h>
+#ifndef _WIN32
 #include <unistd.h>
+#endif
 
 namespace playden::runtime {
 namespace {
@@ -93,6 +95,10 @@ const steam::VdfNode* ScriptSection(const steam::VdfNode& root) {
 }
 
 bool ReadScript(const std::filesystem::path& path, std::string* text) {
+#ifdef _WIN32
+  // Offline simulator cannot safely read installation scripts from host game trees.
+  return false;
+#else
   const int file = ::open(path.c_str(), O_RDONLY | O_NOFOLLOW | O_CLOEXEC);
   if (file < 0) return false;
   char buffer[8192];
@@ -106,6 +112,7 @@ bool ReadScript(const std::filesystem::path& path, std::string* text) {
   }
   ::close(file);
   return ok;
+#endif
 }
 
 }  // namespace
