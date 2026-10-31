@@ -2373,6 +2373,10 @@ bool ParseProfileSidecar(std::string_view text, CommunityPreset* community, std:
 }
 
 bool ClearShaderCache(const LaunchEntry& launch, const std::string& install_root, std::string* reason) {
+#ifdef _WIN32
+  // File deletion requires the native Windows managed-directory security contract.
+  return false;
+#else
   const auto fail = [&](std::string why) {
     if (reason) *reason = std::move(why);
     return false;
@@ -2399,6 +2403,7 @@ bool ClearShaderCache(const LaunchEntry& launch, const std::string& install_root
   const bool removed = directory->RemoveRegularFile(name) && directory->Sync();
   if (!removed) return fail("cannot delete the shader cache");
   return true;
+#endif
 }
 
 namespace {
