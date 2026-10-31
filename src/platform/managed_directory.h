@@ -5,6 +5,10 @@
 #include <string>
 #include <vector>
 #include <sys/stat.h>
+#ifdef _WIN32
+using mode_t = unsigned int;
+using uid_t = unsigned int;
+#endif
 
 namespace playden::platform {
 
