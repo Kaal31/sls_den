@@ -684,7 +684,17 @@ class Render::Impl
         int width = 0;
         int height = 0;
         int channels = 0;
+#ifdef _WIN32
+        // Decode from bytes read via _wfopen; stb's filename API uses the ANSI code page.
+        std::string image_bytes;
+        if (!read_file(path, &image_bytes) || image_bytes.size() > static_cast<std::size_t>(std::numeric_limits<int>::max()))
+            return 0;
+        stbi_uc *pixels = stbi_load_from_memory(
+            reinterpret_cast<const stbi_uc *>(image_bytes.data()),
+            static_cast<int>(image_bytes.size()), &width, &height, &channels, 4);
+#else
         stbi_uc *pixels = stbi_load(path.string().c_str(), &width, &height, &channels, 4);
+#endif
         if (pixels == nullptr)
             return 0;
         const std::uint32_t texture = renderer_.batch().create_texture(width, height, pixels);
