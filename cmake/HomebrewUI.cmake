@@ -309,6 +309,14 @@ if(WIN32)
     # This is an isolated, experimental source-level port. The PS5 and macOS paths
     # continue using their existing implementations without changed dependencies.
     find_package(SDL2 CONFIG REQUIRED)
+    # ps5-homebrew-ui includes GL/glcorearb.h, which is supplied by
+    # vcpkg's opengl-registry (not by the Windows OpenGL SDK).
+    find_path(PLAYDEN_GLCOREARB_INCLUDE_DIR GL/glcorearb.h
+        HINTS "${_VCPKG_INSTALLED_DIR}/${VCPKG_TARGET_TRIPLET}/include")
+    if(NOT PLAYDEN_GLCOREARB_INCLUDE_DIR)
+        message(FATAL_ERROR "GL/glcorearb.h missing: install opengl-registry:x64-windows")
+    endif()
+    target_include_directories(playden_hui PUBLIC "${PLAYDEN_GLCOREARB_INCLUDE_DIR}")
     add_library(PkgConfig::SDL2 INTERFACE IMPORTED)
     target_link_libraries(PkgConfig::SDL2 INTERFACE SDL2::SDL2)
     target_sources(playden_hui PRIVATE
