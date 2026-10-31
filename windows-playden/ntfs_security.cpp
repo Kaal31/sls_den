@@ -83,7 +83,7 @@ bool PrivateAcl(const fs::path& path) {
 bool IsRegularPrivate(const fs::path& path) {
  if(!PrivateAcl(path))return false;
  Handle h;
- h.h=CreateFileW(path.c_str(),FILE_READ_ATTRIBUTES,FILE_SHARE_READ, nullptr,
+ h.h=CreateFileW(path.c_str(),FILE_READ_ATTRIBUTES,FILE_SHARE_READ|FILE_SHARE_WRITE|FILE_SHARE_DELETE, nullptr,
     OPEN_EXISTING,FILE_FLAG_OPEN_REPARSE_POINT,nullptr);
  if(h.h==INVALID_HANDLE_VALUE)return false;
  BY_HANDLE_FILE_INFORMATION info{};
