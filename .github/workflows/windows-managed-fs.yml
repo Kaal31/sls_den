@@ -7,6 +7,8 @@ on:
       - 'windows-playden/identity_smoke.cpp'
       - 'windows-playden/random_id_windows.cpp'
       - 'windows-playden/ntfs_security*'
+      - 'windows-playden/storage_*'
+      - 'cmake/PlaydenCore.cmake'
       - 'windows-playden/effective_uid_windows.cpp'
       - 'src/platform/managed_directory.h'
       - '.github/workflows/windows-managed-fs.yml'
@@ -27,6 +29,13 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "NTFS security compilation failed" }
           & ./ntfs_security_smoke.exe
           if ($LASTEXITCODE -ne 0) { throw "NTFS private ACL/lease test failed" }
+      - name: Test secure Windows storage API
+        shell: pwsh
+        run: |
+          clang-cl /nologo /std:c++17 /EHsc /I src /I windows-playden windows-playden/storage_smoke.cpp windows-playden/storage_windows.cpp windows-playden/ntfs_security.cpp advapi32.lib /Fe:storage_smoke.exe
+          if ($LASTEXITCODE -ne 0) { throw "Windows secure storage compilation failed" }
+          & ./storage_smoke.exe
+          if ($LASTEXITCODE -ne 0) { throw "Windows secure storage smoke failed" }
       - name: Check Windows identity and randomness
         shell: pwsh
         run: |
