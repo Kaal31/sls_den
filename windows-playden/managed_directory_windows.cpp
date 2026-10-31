@@ -65,7 +65,7 @@ std::optional<ManagedDirectory> ManagedDirectory::OpenChild(const std::string& n
 }
 bool ManagedDirectory::Inspect(const std::string& name,struct stat* result) const {
  if(!result||!CleanName(name)||!Validate()||!InspectPath(path_/fs::u8path(name),false))return Deny();
- return _wstat((path_/fs::u8path(name)).c_str(),result)==0;
+ return ::stat((path_/fs::u8path(name)).string().c_str(),result)==0;
 }
 bool ManagedDirectory::InspectChild(const std::string& name,struct stat* result) const{return Inspect(name,result);}
 int ManagedDirectory::OpenFile(const std::string& name,int flags,mode_t) const {
