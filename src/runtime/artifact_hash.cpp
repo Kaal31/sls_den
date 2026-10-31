@@ -67,7 +67,7 @@ class Hash {
 };
 
 int OpenFile(const std::filesystem::path& path) {
-  if (path.empty() || path.native().find('\0') != std::string::npos ||
+  if (path.empty() || path.native().find(std::filesystem::path::value_type{}) != std::filesystem::path::string_type::npos ||
       path.filename().empty()) return -1;
   std::error_code error;
   const auto absolute = path.is_absolute() ? path : std::filesystem::absolute(path, error);
