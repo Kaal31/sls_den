@@ -30,9 +30,16 @@ jobs:
         with:
           submodules: recursive
       - uses: ilammy/msvc-dev-cmd@v1
+      - uses: actions/cache@v4
+        with:
+          path: ${{ github.workspace }}/.vcpkg-bincache
+          key: windows-offline-vcpkg-sdl2-opengl-mbedtls-v1
       - name: Install offline GUI and crypto dependencies
         shell: pwsh
+        env:
+          VCPKG_BINARY_SOURCES: clear;files,${{ github.workspace }}/.vcpkg-bincache,readwrite
         run: |
+          New-Item -ItemType Directory -Force .vcpkg-bincache | Out-Null
           C:\vcpkg\vcpkg.exe install sdl2:x64-windows opengl-registry:x64-windows mbedtls:x64-windows
       - name: Configure offline-only Windows Playden
         shell: pwsh
