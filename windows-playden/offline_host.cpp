@@ -74,13 +74,17 @@ fs::path LogPath() {
 #endif
  return "sls-den-startup.log";
 }
+std::string Utf8Path(const fs::path& path) {
+  const auto bytes=path.u8string();
+  return std::string(bytes.begin(),bytes.end());
+}
 fs::path startup_log;
 void Log(const std::string& message) {
  if(startup_log.empty()) return;
 #ifdef _WIN32
  FILE* file=_wfopen(startup_log.c_str(),L"a");
 #else
- FILE* file=std::fopen(startup_log.u8string().c_str(),"a");
+ FILE* file=std::fopen(Utf8Path(startup_log).c_str(),"a");
 #endif
  if(!file) return;
  const std::time_t now=std::time(nullptr);
@@ -123,8 +127,8 @@ int main(int argc,char** argv){
  }
 #endif
  Log("Resource locations resolved");
- Log("Assets: "+options.assets.u8string());
- Log("Fixtures: "+options.fixtures.u8string());
+ Log("Assets: "+Utf8Path(options.assets));
+ Log("Fixtures: "+Utf8Path(options.fixtures));
  Log("Options: self-test="+std::to_string(options.self_test)+" headless="+std::to_string(options.headless));
  // The simulation model takes no real Steam credentials or network transport.
  Log("Constructing Playden simulation");
@@ -215,7 +219,7 @@ int main(int argc,char** argv){
    #ifdef _WIN32
    std::FILE* file=_wfopen(options.snapshot.c_str(),L"wb");
 #else
-   std::FILE* file=std::fopen(options.snapshot.u8string().c_str(),"wb");
+   std::FILE* file=std::fopen(Utf8Path(options.snapshot).c_str(),"wb");
 #endif
    if(!file)exit_code=5;
    else{
