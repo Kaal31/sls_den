@@ -4,6 +4,10 @@ on:
     branches: [windows-preview]
     paths:
       - 'cmake/HomebrewUI.cmake'
+      - 'cmake/SteamBackend.cmake'
+      - 'src/homebrew/host.cpp'
+      - 'src/steam/backend/http_client.cpp'
+      - 'src/steam/backend/ws_client.cpp'
       - 'windows-playden/**'
       - '.github/workflows/windows-playden-cmake.yml'
   workflow_dispatch:
@@ -21,9 +25,16 @@ jobs:
         with:
           submodules: recursive
       - uses: ilammy/msvc-dev-cmd@v1
+      - uses: actions/cache@v4
+        with:
+          path: ${{ github.workspace }}/.vcpkg-bincache
+          key: windows-playden-vcpkg-curl-sdl2-v1
       - name: Install Windows SDL2 and OpenGL development headers
         shell: pwsh
+        env:
+          VCPKG_BINARY_SOURCES: clear;files,${{ github.workspace }}/.vcpkg-bincache,readwrite
         run: |
+          New-Item -ItemType Directory -Force .vcpkg-bincache | Out-Null
           C:\vcpkg\vcpkg.exe install sdl2:x64-windows opengl-registry:x64-windows curl:x64-windows
       - name: Configure native Playden desktop host (experimental)
         shell: pwsh
