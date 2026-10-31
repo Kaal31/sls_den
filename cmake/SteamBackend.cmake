@@ -35,15 +35,22 @@ target_link_libraries(playden_steam_library PUBLIC
 if(PLAYDEN_PLATFORM_PS5)
     target_compile_options(playden_steam_library PRIVATE -fno-exceptions -fno-rtti)
 endif()
+option(PLAYDEN_WINDOWS_OFFLINE_ONLY
+    "Build the Windows offline GUI without compiling a live Steam transport" OFF)
 if(WIN32 AND NOT PLAYDEN_PLATFORM_PS5)
     find_package(MbedTLS CONFIG REQUIRED)
     target_link_libraries(playden_steam_auth PUBLIC MbedTLS::mbedcrypto)
     # Windows-only: use native Windows curl libraries, never Unix .a archives.
     # Live transport is compiled only for explicit opt-in builds. The default
     # Windows mode remains offline and does not make Steam requests.
-    find_package(CURL CONFIG REQUIRED)
-    add_library(playden_curl_8_22 INTERFACE)
-    target_link_libraries(playden_curl_8_22 INTERFACE CURL::libcurl)
+    if(PLAYDEN_WINDOWS_OFFLINE_ONLY)
+        # Offline preview has no curl transport; live network is unavailable.
+        add_library(playden_curl_8_22 INTERFACE)
+    else()
+        find_package(CURL CONFIG REQUIRED)
+        add_library(playden_curl_8_22 INTERFACE)
+        target_link_libraries(playden_curl_8_22 INTERFACE CURL::libcurl)
+    endif()
     set(playden_staged_ca "" CACHE STRING "Windows: use system TLS trust")
 else()
 set(PLAYDEN_STEAM_PREFIX
