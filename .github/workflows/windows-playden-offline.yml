@@ -105,6 +105,29 @@ jobs:
           $deps | Set-Content "windows-playden/offline-dll-dependencies.txt"
           Write-Host "Offline simulation has native curl linkage; network operations remain disabled by the host."
           Write-Host "Packaged offline UI assets verified"
+      - name: Run packaged app in Unicode-named Windows directory
+        shell: pwsh
+        run: |
+          $source = (Resolve-Path "windows-playden/offline-dist").Path
+          $unicodeRoot = Join-Path $env:RUNNER_TEMP "Финансовый партнёр 漢字"
+          $destination = Join-Path $unicodeRoot "playden-windows-real-ui-offline"
+          New-Item -ItemType Directory -Force $destination | Out-Null
+          Copy-Item "$source/*" -Destination $destination -Recurse -Force
+          $exe = Join-Path $destination "playden-windows-offline.exe"
+          $env:PATH = "$destination;C:\vcpkg\installed\x64-windows\bin;" + $env:PATH
+          & $exe --validate-assets --self-test
+          if ($LASTEXITCODE -ne 0) {
+            $log = Join-Path $destination "sls-den-startup.log"
+            if (Test-Path $log) { Get-Content $log }
+            throw "Packaged Windows Playden could not initialize from Unicode directory"
+          }
+          $log = Join-Path $destination "sls-den-startup.log"
+          if (-not (Test-Path $log)) { throw "Packaged executable did not create startup log" }
+          $text = Get-Content $log -Raw -Encoding utf8
+          if ($text -notmatch "Packaged renderer font files verified" -or $text -notmatch "Simulation self-test passed") {
+            throw "Missing expected Unicode package asset and simulation validation milestones"
+          }
+          Write-Host "PASS: packaged renderer resources and model initialize from Unicode folder"
       - uses: actions/upload-artifact@v4
         with:
           name: playden-windows-real-ui-offline
