@@ -154,10 +154,6 @@ std::optional<Options> parse_options(int argc, char** argv) {
         std::fprintf(stderr, "Windows live networking is disabled until secure private storage is implemented.\\n");
         return std::nullopt;
     }
-    if (options.network_opt_in && (options.simulation || options.mock_console)) {
-        std::fprintf(stderr, "--live-network cannot be combined with offline simulation\n");
-        return std::nullopt;
-    }
 #else
     if (options.network_opt_in) {
         std::fprintf(stderr, "--live-network is a Windows preview switch\n");
