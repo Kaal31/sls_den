@@ -8,6 +8,7 @@ on:
       - 'src/sls/**'
       - 'src/runtime/**'
       - 'src/platform/**'
+      - 'src/steam/**'
       - 'cmake/HomebrewUI.cmake'
       - 'cmake/PlaydenCore.cmake'
       - 'cmake/SteamBackend.cmake'
