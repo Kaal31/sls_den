@@ -12,6 +12,9 @@ on:
       - 'windows-playden/**'
       - '.github/workflows/windows-playden-cmake.yml'
   workflow_dispatch:
+concurrency:
+  group: windows-playden-cmake-${{ github.ref }}
+  cancel-in-progress: true
 permissions:
   contents: read
 jobs:
