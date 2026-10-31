@@ -35,6 +35,15 @@ target_link_libraries(playden_steam_library PUBLIC
 if(PLAYDEN_PLATFORM_PS5)
     target_compile_options(playden_steam_library PRIVATE -fno-exceptions -fno-rtti)
 endif()
+if(WIN32 AND NOT PLAYDEN_PLATFORM_PS5)
+    # Windows-only: use native Windows curl libraries, never Unix .a archives.
+    # Live transport is compiled only for explicit opt-in builds. The default
+    # Windows mode remains offline and does not make Steam requests.
+    find_package(CURL CONFIG REQUIRED)
+    add_library(playden_curl_8_22 INTERFACE)
+    target_link_libraries(playden_curl_8_22 INTERFACE CURL::libcurl)
+    set(playden_staged_ca "" CACHE STRING "Windows: use system TLS trust")
+else()
 set(PLAYDEN_STEAM_PREFIX
     "${CMAKE_SOURCE_DIR}/scripts/network-deps/.deps/${playden_steam_dependency_platform}"
     CACHE PATH "Pinned curl/Mbed TLS prefix prepared by scripts/network-deps")
@@ -130,6 +139,8 @@ int main() { mbedtls_threading_mutex_t mutex; mbedtls_mutex_init(&mutex);
 unset(CMAKE_REQUIRED_LIBRARIES)
 if(NOT playden_mbedtls_threading_links)
     message(FATAL_ERROR "Mbed TLS pthread headers/libraries mismatch. Rebuild network dependencies together.")
+endif()
+
 endif()
 
 add_library(playden_steam_http STATIC
