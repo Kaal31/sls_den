@@ -4,6 +4,7 @@ on:
     branches: [windows-preview]
     paths:
       - 'cmake/HomebrewUI.cmake'
+      - 'windows-playden/offline_host.cpp'
       - 'cmake/PlaydenCore.cmake'
       - 'cmake/SteamBackend.cmake'
       - 'src/homebrew/host.cpp'
@@ -48,6 +49,13 @@ jobs:
         run: |
           cmake -S . -B build/windows-playden -G Ninja -DCMAKE_MAKE_PROGRAM=ninja -DCMAKE_C_COMPILER=clang-cl -DCMAKE_CXX_COMPILER=clang-cl -DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake -DBUILD_TESTING=OFF -DPLAYDEN_PLATFORM_PS5=OFF -DCMAKE_BUILD_TYPE=Debug 2>&1 | Tee-Object windows-playden/cmake-configure.log
           if ($LASTEXITCODE -ne 0) { throw "Windows host CMake configuration has portability blockers" }
+      - name: Build and smoke-test real offline Playden UI target
+        shell: pwsh
+        run: |
+          cmake --build build/windows-playden --target playden-windows-offline --parallel 2 2>&1 | Tee-Object windows-playden/offline-build.log
+          if ($LASTEXITCODE -ne 0) { throw "Real Windows offline Playden UI build has compatibility blockers" }
+          & build/windows-playden/playden-windows-offline.exe --self-test
+          if ($LASTEXITCODE -ne 0) { throw "Windows Playden offline startup smoke failed" }
       - name: Compile real Playden Windows desktop target
         shell: pwsh
         run: |
