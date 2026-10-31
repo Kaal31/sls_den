@@ -6,6 +6,8 @@ on:
       - 'windows-playden/**'
       - 'src/homebrew/**'
       - 'src/sls/**'
+      - 'src/runtime/**'
+      - 'src/platform/**'
       - 'cmake/HomebrewUI.cmake'
       - 'cmake/PlaydenCore.cmake'
       - 'cmake/SteamBackend.cmake'
