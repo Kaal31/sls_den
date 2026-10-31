@@ -13,6 +13,8 @@
 #include <algorithm>
 #include <chrono>
 #include <cstdio>
+#include <ctime>
+#include <exception>
 #include <filesystem>
 #include <string>
 #include <string_view>
@@ -60,7 +62,42 @@ const char* LogicalKey(SDL_Keycode key){
  }
 }
 }
+fs::path LogPath() {
+#ifdef _WIN32
+ wchar_t executable[32768]{};
+ if(GetModuleFileNameW(nullptr,executable,32768)>0) {
+   const auto location=fs::path(executable).parent_path()/"sls-den-startup.log";
+   if(FILE* test=_wfopen(location.c_str(),L"a")) {std::fclose(test); return location;}
+ }
+ wchar_t temp[MAX_PATH]{};
+ if(GetTempPathW(MAX_PATH,temp)>0) return fs::path(temp)/"sls-den-startup.log";
+#endif
+ return "sls-den-startup.log";
+}
+fs::path startup_log;
+void Log(const std::string& message) {
+ if(startup_log.empty()) return;
+#ifdef _WIN32
+ FILE* file=_wfopen(startup_log.c_str(),L"a");
+#else
+ FILE* file=std::fopen(startup_log.string().c_str(),"a");
+#endif
+ if(!file) return;
+ const std::time_t now=std::time(nullptr);
+ std::fprintf(file,"[%lld] %s\\n",static_cast<long long>(now),message.c_str());
+ std::fclose(file);
+}
+void StartupError(const std::string& message) {
+ Log("ERROR: "+message);
+ std::fprintf(stderr,"SLS Den Windows: %s\\n",message.c_str());
+#ifdef _WIN32
+ std::string display=message+"\\n\\nLog: "+startup_log.string();
+ MessageBoxA(nullptr,display.c_str(),"SLS Den - Startup error",MB_OK|MB_ICONERROR|MB_TOPMOST);
+#endif
+}
 int main(int argc,char** argv){
+ startup_log=LogPath();
+ Log("Application started; Windows Playden offline preview");
  Options options;
  if(!Parse(argc,argv,&options)){
    std::fprintf(stderr,"usage: playden-windows-offline [--scenario ID] [--self-test] [--capture PNG] [--snapshot JSON] [--headless]\n");
@@ -76,7 +113,11 @@ int main(int argc,char** argv){
      options.fixtures=dir/"fixtures";
  }
 #endif
+ Log("Assets: "+options.assets.string());
+ Log("Fixtures: "+options.fixtures.string());
+ Log("Options: self-test="+std::to_string(options.self_test)+" headless="+std::to_string(options.headless));
  // The simulation model takes no real Steam credentials or network transport.
+ Log("Constructing Playden simulation");
  playden::homebrew::Simulation simulation(options.fixtures,{},playden::homebrew::ModelMode::Simulation);
  if(!options.scenario.empty()&&!simulation.scenario(options.scenario)){
    std::fprintf(stderr,"Unknown scenario: %s\n",options.scenario.c_str());
@@ -84,10 +125,12 @@ int main(int argc,char** argv){
  }
  if(options.self_test){
    auto data=simulation.snapshot();
-   if(data.empty())return 3;
+   if(data.empty()){StartupError("Simulation snapshot was empty");return 3;}
+   Log("Simulation self-test passed");
    std::puts("PASS: native Windows Playden offline simulation initialized");
    return 0;
  }
+ Log("Initializing SDL video and controllers");
  SDL_SetMainReady();
  if(SDL_Init(SDL_INIT_VIDEO|SDL_INIT_GAMECONTROLLER)!=0){
    std::fprintf(stderr,"SDL init failed: %s\n",SDL_GetError());return 1;
@@ -97,6 +140,7 @@ int main(int argc,char** argv){
  SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK,SDL_GL_CONTEXT_PROFILE_CORE);
  SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS,SDL_GL_CONTEXT_FORWARD_COMPATIBLE_FLAG);
  SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER,1);
+ Log("Creating OpenGL 4.1 window and context");
  SDL_Window* window=SDL_CreateWindow("SLS Den - Playden Offline Preview",
    SDL_WINDOWPOS_CENTERED,SDL_WINDOWPOS_CENTERED,options.width,options.height,
    SDL_WINDOW_OPENGL|SDL_WINDOW_RESIZABLE|(options.headless?SDL_WINDOW_HIDDEN:SDL_WINDOW_SHOWN));
@@ -108,6 +152,7 @@ int main(int argc,char** argv){
    SDL_Quit();return 1;
  }
 #ifdef _WIN32
+ Log("Initializing GLEW OpenGL entry points");
  glewExperimental = GL_TRUE;
  const GLenum glew_result = glewInit();
  if (glew_result != GLEW_OK) {
@@ -120,8 +165,11 @@ int main(int argc,char** argv){
  hui::gfx::set_glsl_prefix("#version 410 core\n");
  int exit_code=0;
  try{
+   Log("Constructing Playden renderer");
    playden::homebrew::Render renderer(options.assets);
+   Log("Renderer constructed, entering UI loop");
    bool running=true;
+   bool first_frame=true;
    SDL_StartTextInput();
    const auto start=std::chrono::steady_clock::now();
    auto prev=start;
@@ -141,6 +189,7 @@ int main(int argc,char** argv){
      renderer.draw(simulation,options.width,options.height,
          std::clamp(dt,0.001f,0.1f));
      SDL_GL_SwapWindow(window);
+     if(first_frame){ Log("First UI frame presented"); first_frame=false; }
      if(options.headless){
        if(!options.capture.empty()&&!renderer.capture_png(options.capture,options.width,options.height))
          exit_code=4;
@@ -164,5 +213,6 @@ int main(int argc,char** argv){
  SDL_GL_DeleteContext(context);
  SDL_DestroyWindow(window);
  SDL_Quit();
+ Log("Exiting with status "+std::to_string(exit_code));
  return exit_code;
 }
