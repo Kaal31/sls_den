@@ -3,11 +3,16 @@
 #include "steam/backend/native_network.h"
 
 #include <curl/curl.h>
+#ifdef _WIN32
+#include <winsock2.h>
+#else
 #include <poll.h>
+#endif
 
 #include <algorithm>
 #include <chrono>
 #include <cstring>
+#include <string_view>
 #include <thread>
 
 namespace playden::steam {
@@ -85,8 +90,16 @@ class WebSocketClient::Impl {
   HttpError Connect(const std::string& url, std::uint32_t timeout_ms,
                     const std::atomic<bool>& cancel) {
     Close();
-    if (!internal::InitializeNativeNetwork() || !CurlReady() || ca_bundle_.empty())
+    if (!internal::InitializeNativeNetwork() || !CurlReady())
       return HttpError::kInitializationFailed;
+#ifdef _WIN32
+    const auto* version = curl_version_info(CURLVERSION_NOW);
+    const bool system_trust = ca_bundle_.empty() && version && version->ssl_version &&
+        std::string_view(version->ssl_version).find("Schannel") != std::string_view::npos;
+    if (ca_bundle_.empty() && !system_trust) return HttpError::kInitializationFailed;
+#else
+    if (ca_bundle_.empty()) return HttpError::kInitializationFailed;
+#endif
     if (!ValidWebSocketUrl(url) || timeout_ms == 0) return HttpError::kInvalidRequest;
     if (cancel.load(std::memory_order_acquire)) return HttpError::kCanceled;
     timeout_ms = std::min(timeout_ms, kMaxConnectTimeoutMs);
@@ -95,7 +108,7 @@ class WebSocketClient::Impl {
     if (!easy_) return HttpError::kInitializationFailed;
     bool configured =
         curl_easy_setopt(easy_, CURLOPT_URL, url.c_str()) == CURLE_OK &&
-        curl_easy_setopt(easy_, CURLOPT_CAINFO, ca_bundle_.c_str()) == CURLE_OK &&
+        (ca_bundle_.empty() || curl_easy_setopt(easy_, CURLOPT_CAINFO, ca_bundle_.c_str()) == CURLE_OK) &&
         curl_easy_setopt(easy_, CURLOPT_SSL_VERIFYPEER, 1L) == CURLE_OK &&
         curl_easy_setopt(easy_, CURLOPT_SSL_VERIFYHOST, 2L) == CURLE_OK &&
         curl_easy_setopt(easy_, CURLOPT_SSLVERSION, CURL_SSLVERSION_TLSv1_2) == CURLE_OK &&
@@ -225,10 +238,17 @@ class WebSocketClient::Impl {
 
   void Wait(short events, std::uint32_t wait_ms) {
     if (socket_ != CURL_SOCKET_BAD) {
+#ifdef _WIN32
+      WSAPOLLFD descriptor{};
+      descriptor.fd = socket_;
+      descriptor.events = events;
+      if (WSAPoll(&descriptor, 1, static_cast<int>(wait_ms)) >= 0) return;
+#else
       pollfd descriptor{};
       descriptor.fd = static_cast<int>(socket_);
       descriptor.events = events;
       if (poll(&descriptor, 1, static_cast<int>(wait_ms)) >= 0) return;
+#endif
     }
     std::this_thread::sleep_for(std::chrono::milliseconds(std::min<std::uint32_t>(wait_ms, 10)));
   }
