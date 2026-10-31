@@ -11,6 +11,7 @@ on:
       - 'src/steam/**'
       - 'cmake/HomebrewUI.cmake'
       - 'cmake/PlaydenCore.cmake'
+      - 'cmake/ProsperoRuntime.cmake'
       - 'cmake/SteamBackend.cmake'
       - '.github/workflows/windows-playden-offline.yml'
   workflow_dispatch:
