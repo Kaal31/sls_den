@@ -12,8 +12,10 @@
 #include <string_view>
 #include <vector>
 
+#ifndef _WIN32
 #include <fcntl.h>
 #include <unistd.h>
+#endif
 
 namespace playden::runtime {
 namespace {
@@ -32,6 +34,15 @@ bool EndsWith(const std::string& text, std::string_view suffix) {
 
 // A program file opened without following links. Reads are positioned, so the import
 // table is found through the section table wherever it sits in a large program.
+#ifdef _WIN32
+// Native offline preview does not scan untrusted game executables.
+class Program {
+ public:
+  explicit Program(const std::string&) {}
+  bool ReadAt(std::uint64_t, void*, std::size_t) const { return false; }
+  std::size_t ReadSome(std::uint64_t, unsigned char*, std::size_t) const { return 0; }
+};
+#else
 class Program {
  public:
   explicit Program(const std::string& path) : file_(::open(path.c_str(), O_RDONLY | O_NOFOLLOW | O_CLOEXEC)) {}
@@ -64,6 +75,7 @@ class Program {
  private:
   int file_;
 };
+#endif
 
 std::uint32_t U32(const unsigned char* bytes) {
   return bytes[0] | (bytes[1] << 8) | (bytes[2] << 16) | (static_cast<std::uint32_t>(bytes[3]) << 24);
