@@ -1,6 +1,9 @@
 #include "runtime/prospero_profile.h"
 
 #include <sys/stat.h>
+#ifdef _WIN32
+#include <direct.h>
+#endif
 
 #include <algorithm>
 #include <cctype>
@@ -448,8 +451,13 @@ bool PublishProsperoProfile(const std::string& prospero_root, const ProsperoProf
     return false;
   };
   const auto directory = prospero_root + "/profiles";
+#ifdef _WIN32
+  _mkdir(prospero_root.c_str());
+  _mkdir(directory.c_str());
+#else
   mkdir(prospero_root.c_str(), 0777);
   mkdir(directory.c_str(), 0777);
+#endif
   const auto entry = profile.id + ".profile";
   if (!WriteAtomically(directory + "/" + entry, profile.text)) return fail("cannot write profile");
 
