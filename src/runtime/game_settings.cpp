@@ -21,7 +21,9 @@
 #include <optional>
 #include <set>
 #include <sys/stat.h>
+#ifndef _WIN32
 #include <unistd.h>
+#endif
 #include <utility>
 
 namespace playden::runtime {
@@ -1603,6 +1605,10 @@ std::optional<std::string> ResolveGameFile(const std::string& root, const std::s
 
 // "pe32" or "pe64" from a Windows executable's PE header; empty when it is neither.
 std::string ExecutableArchitecture(const std::string& path) {
+#ifdef _WIN32
+  // Offline preview: fail closed until Windows handle and ACL checks are verified.
+  return {};
+#else
   const int file = ::open(path.c_str(), O_RDONLY | O_NOFOLLOW | O_CLOEXEC);
   if (file < 0) return {};
   const auto read_at = [file](off_t offset, unsigned char* buffer, std::size_t size) {
@@ -1630,6 +1636,7 @@ std::string ExecutableArchitecture(const std::string& path) {
   }
   ::close(file);
   return architecture;
+#endif
 }
 
 }  // namespace
@@ -1942,6 +1949,10 @@ std::vector<GameProgram> ListGamePrograms(const std::string& install_root, const
 namespace {
 
 bool ReadSmallFile(const std::string& path, std::string* text) {
+#ifdef _WIN32
+  // Offline preview: fail closed until Windows handle and ACL checks are verified.
+  return false;
+#else
   const std::filesystem::path value(path);
   auto directory = ManagedDirectory::Open(value.parent_path(), DirectoryPolicy::kApprovedTree);
   if (!directory) return false;
@@ -1968,6 +1979,7 @@ bool ReadSmallFile(const std::string& path, std::string* text) {
       before.st_size == after.st_size && before.st_mtime == after.st_mtime &&
       before.st_ctime == after.st_ctime;
   return ::close(file) == 0 && valid && unchanged && directory->Validate();
+#endif
 }
 
 std::optional<ManagedDirectory> OpenSafeParent(const std::string& path,
@@ -2003,6 +2015,10 @@ enum class RelativeRead { kMissing, kPresent, kError };
 RelativeRead ReadRegularAt(const ManagedDirectory& directory, const char* name,
                            std::size_t maximum, std::string* text,
                            mode_t* mode = nullptr, bool private_file = false) {
+#ifdef _WIN32
+  // Offline preview: fail closed until Windows handle and ACL checks are verified.
+  return RelativeRead::kError;
+#else
   const int file = directory.OpenRegularFile(name, private_file);
   if (file < 0) return errno == ENOENT ? RelativeRead::kMissing : RelativeRead::kError;
   struct stat status {}, after {};
@@ -2032,6 +2048,7 @@ RelativeRead ReadRegularAt(const ManagedDirectory& directory, const char* name,
   if (::close(file) != 0 || !unchanged || !directory.Validate())
     return RelativeRead::kError;
   return RelativeRead::kPresent;
+#endif
 }
 
 bool WriteAtomicAt(const ManagedDirectory& directory, const char* name,
@@ -2039,6 +2056,10 @@ bool WriteAtomicAt(const ManagedDirectory& directory, const char* name,
                    bool preserve_existing_mode = false,
                    bool private_file = false,
                    bool replace_existing = true) {
+#ifdef _WIN32
+  // Offline preview: fail closed until Windows handle and ACL checks are verified.
+  return false;
+#else
   mode_t mode = new_mode;
   struct stat status {};
   if (directory.InspectChild(name, &status)) {
@@ -2082,6 +2103,7 @@ bool WriteAtomicAt(const ManagedDirectory& directory, const char* name,
     return false;
   }
   return directory.Sync();
+#endif
 }
 
 // A record's key: ToKey's form, or digits with leading zeros, which earlier Playdens read as that
@@ -2224,6 +2246,10 @@ bool LoadGameSettingsFile(const std::string& path, std::map<GameId, GameSettings
 
 bool SaveGameSettingsFile(const std::string& path, const std::map<GameId, GameSettingsRecord>& records,
                           std::string* reason) {
+#ifdef _WIN32
+  // Offline preview: fail closed until Windows handle and ACL checks are verified.
+  if (reason) *reason = "Game settings writes are disabled in Windows offline preview"; return false;
+#else
   const auto text = SerializeSettingsFile(records);
   std::string name;
   auto directory = OpenSafeParent(path, DirectoryPolicy::kPrivate, &name);
@@ -2248,6 +2274,7 @@ bool SaveGameSettingsFile(const std::string& path, const std::map<GameId, GameSe
     return false;
   }
   return true;
+#endif
 }
 
 bool MigrateLegacyGameSettingsFile(const std::string& legacy_path,
@@ -2844,6 +2871,10 @@ bool ParseUe3InstallGuid(std::string_view install_info, std::string* guid) {
 
 Ue3EulaResult AcceptUe3Eula(const std::string& game_root, const std::vector<std::string>& programs,
                             const std::string& prefix_dir, std::int64_t unix_time) {
+#ifdef _WIN32
+  // Offline preview: fail closed until Windows handle and ACL checks are verified.
+  return {};
+#else
   Ue3EulaResult result;
   // Only a UDK layout: the launch program in Binaries/Win32 or Binaries/Win64, with
   // InstallInfo.xml and UnSetup.exe in Binaries.
@@ -2896,6 +2927,7 @@ Ue3EulaResult AcceptUe3Eula(const std::string& game_root, const std::vector<std:
   if (!ApplyRegistryFileValues(values, prefix_dir, unix_time, &reason, "system.reg")) return fail(reason);
   result.written = true;
   return result;
+#endif
 }
 
 }  // namespace playden::runtime
