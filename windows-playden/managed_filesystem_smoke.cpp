@@ -2,6 +2,7 @@
 #include "platform/managed_file_lock.h"
 #include <filesystem>
 #include <fstream>
+#include <io.h>
 #include <iostream>
 using namespace playden::platform;
 int main() {
