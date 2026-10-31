@@ -91,6 +91,11 @@ bool IsRegularPrivate(const fs::path& path) {
     !(info.dwFileAttributes&(FILE_ATTRIBUTE_DIRECTORY|FILE_ATTRIBUTE_REPARSE_POINT));
 }
 }
+bool IsPrivateDirectory(const fs::path& path) {
+ const DWORD attr=GetFileAttributesW(path.c_str());
+ return attr!=INVALID_FILE_ATTRIBUTES && (attr&FILE_ATTRIBUTE_DIRECTORY) &&
+    !(attr&FILE_ATTRIBUTE_REPARSE_POINT) && PrivateAcl(path);
+}
 bool EnsurePrivateDirectory(const fs::path& path) {
  if(!path.is_absolute()||!NTFS(path))return false;
  if(GetFileAttributesW(path.c_str())==INVALID_FILE_ATTRIBUTES) {
@@ -100,9 +105,7 @@ bool EnsurePrivateDirectory(const fs::path& path) {
    SECURITY_ATTRIBUTES attrs{sizeof(attrs),sd.p,FALSE};
    if(!CreateDirectoryW(path.c_str(),&attrs))return false;
  }
- const DWORD attr=GetFileAttributesW(path.c_str());
- return attr!=INVALID_FILE_ATTRIBUTES && (attr&FILE_ATTRIBUTE_DIRECTORY) &&
-   !(attr&FILE_ATTRIBUTE_REPARSE_POINT) && PrivateAcl(path);
+ return IsPrivateDirectory(path);
 }
 bool IsPrivateFile(const fs::path& path) { return IsRegularPrivate(path); }
 bool CreatePrivateFile(const fs::path& path) {
