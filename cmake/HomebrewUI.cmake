@@ -309,6 +309,11 @@ if(WIN32)
     # This is an isolated, experimental source-level port. The PS5 and macOS paths
     # continue using their existing implementations without changed dependencies.
     find_package(SDL2 CONFIG REQUIRED)
+    find_package(GLEW REQUIRED)
+    # Override gfx/gl.hpp without modifying the locked upstream UI sources.
+    target_include_directories(playden_hui BEFORE PUBLIC
+        "${CMAKE_SOURCE_DIR}/windows-playden/gl-compat")
+    target_link_libraries(playden_hui PUBLIC GLEW::GLEW)
     # ps5-homebrew-ui includes GL/glcorearb.h, which is supplied by
     # vcpkg's opengl-registry (not by the Windows OpenGL SDK).
     find_path(PLAYDEN_GLCOREARB_INCLUDE_DIR GL/glcorearb.h
