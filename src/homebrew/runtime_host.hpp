@@ -25,7 +25,12 @@
 #include <memory>
 #include <mutex>
 #include <optional>
+#ifdef _WIN32
+#include <windows.h>
+using pthread_t = HANDLE; // Windows host compilation only; PS5 worker remains unchanged.
+#else
 #include <pthread.h>
+#endif
 #include <string>
 #include <unordered_map>
 #include <vector>
