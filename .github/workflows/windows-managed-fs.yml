@@ -6,6 +6,7 @@ on:
       - 'windows-playden/managed_*'
       - 'windows-playden/identity_smoke.cpp'
       - 'windows-playden/random_id_windows.cpp'
+      - 'windows-playden/ntfs_security*'
       - 'windows-playden/effective_uid_windows.cpp'
       - 'src/platform/managed_directory.h'
       - '.github/workflows/windows-managed-fs.yml'
@@ -19,6 +20,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: ilammy/msvc-dev-cmd@v1
+      - name: Validate owner-only NTFS ACL and native file locks
+        shell: pwsh
+        run: |
+          clang-cl /nologo /std:c++20 /EHsc /I windows-playden windows-playden/ntfs_security_smoke.cpp windows-playden/ntfs_security.cpp advapi32.lib /Fe:ntfs_security_smoke.exe
+          if ($LASTEXITCODE -ne 0) { throw "NTFS security compilation failed" }
+          & ./ntfs_security_smoke.exe
+          if ($LASTEXITCODE -ne 0) { throw "NTFS private ACL/lease test failed" }
       - name: Check Windows identity and randomness
         shell: pwsh
         run: |
