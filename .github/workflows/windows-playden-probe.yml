@@ -42,6 +42,13 @@ jobs:
         run: |
           clang-cl /nologo /std:c++20 /EHsc /I src /I third_party/ps5-homebrew-ui/src /c src/homebrew/mock_console.cpp /Fo:windows-playden/out/mock_console.obj 2>&1 | Tee-Object windows-playden/out/mock-console-output.txt
           if ($LASTEXITCODE -ne 0) { throw "Windows mock-console compatibility build failed" }
+      - name: Compile Windows filesystem security adapter
+        shell: pwsh
+        run: |
+          clang-cl /nologo /std:c++20 /EHsc /I src /c windows-playden/managed_directory_windows.cpp /Fo:windows-playden/out/managed_directory.obj 2>&1 | Tee-Object windows-playden/out/fs-output.txt
+          if ($LASTEXITCODE -ne 0) { throw "Windows filesystem adapter failed compilation" }
+          clang-cl /nologo /std:c++20 /EHsc /I src /c windows-playden/managed_file_lock_windows.cpp /Fo:windows-playden/out/managed_file_lock.obj 2>&1 | Tee-Object windows-playden/out/lock-output.txt
+          if ($LASTEXITCODE -ne 0) { throw "Windows lock adapter failed compilation" }
       - name: Build and execute Windows UI platform services smoke test
         shell: pwsh
         run: |
