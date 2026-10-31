@@ -98,7 +98,11 @@ void StartupError(const std::string& message) {
 int main(int argc,char** argv){
  startup_log=LogPath();
  Log("Application started; Windows Playden offline preview");
+ try {
+ Log("Constructing startup options");
  Options options;
+ Log("Startup options initialized");
+ Log("Parsing command line");
  if(!Parse(argc,argv,&options)){
    std::fprintf(stderr,"usage: playden-windows-offline [--scenario ID] [--self-test] [--capture PNG] [--snapshot JSON] [--headless]\n");
    return 2;
@@ -107,14 +111,18 @@ int main(int argc,char** argv){
  wchar_t executable[32768]{};
  if(GetModuleFileNameW(nullptr,executable,32768)>0){
    const auto dir=fs::path(executable).parent_path();
-   if(!fs::exists(options.assets)&&fs::exists(dir/"homebrew-assets"))
+   Log("Resolving packaged resource folders");
+   std::error_code assets_error, fixtures_error;
+   if(fs::is_directory(dir/"homebrew-assets",assets_error))
      options.assets=dir/"homebrew-assets";
-   if(!fs::exists(options.fixtures)&&fs::exists(dir/"fixtures"))
+   if(fs::is_directory(dir/"fixtures",fixtures_error))
      options.fixtures=dir/"fixtures";
+   Log("Packaged resource folder lookup complete");
  }
 #endif
- Log("Assets: "+options.assets.string());
- Log("Fixtures: "+options.fixtures.string());
+ Log("Resource locations resolved");
+ Log("Assets: "+options.assets.u8string());
+ Log("Fixtures: "+options.fixtures.u8string());
  Log("Options: self-test="+std::to_string(options.self_test)+" headless="+std::to_string(options.headless));
  // The simulation model takes no real Steam credentials or network transport.
  Log("Constructing Playden simulation");
@@ -215,4 +223,11 @@ int main(int argc,char** argv){
  SDL_Quit();
  Log("Exiting with status "+std::to_string(exit_code));
  return exit_code;
+ } catch(const std::exception& error) {
+   StartupError(std::string("Startup exception: ")+error.what());
+   return 1;
+ } catch(...) {
+   StartupError("Unknown startup exception");
+   return 1;
+ }
 }
