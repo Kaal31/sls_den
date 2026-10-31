@@ -78,6 +78,7 @@ jobs:
           $deps = & dumpbin /dependents "$dir/playden-windows-offline.exe"
           if ($LASTEXITCODE -ne 0) { throw "Cannot inspect Windows executable import table" }
           $deps | Set-Content "windows-playden/offline-dll-dependencies.txt"
+          if ($deps -match "(?i)libcurl[^\\s]*\\.dll") { throw "Offline GUI unexpectedly imports libcurl" }
           Write-Host "Packaged offline UI assets verified"
       - uses: actions/upload-artifact@v4
         with:
