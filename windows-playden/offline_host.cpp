@@ -13,6 +13,7 @@
 #include <algorithm>
 #include <chrono>
 #include <cstdio>
+#include <array>
 #include <ctime>
 #include <exception>
 #include <filesystem>
@@ -29,6 +30,7 @@ struct Options {
  fs::path snapshot;
  std::string scenario;
  bool self_test=false;
+ bool validate_assets=false;
  bool headless=false;
  int width=1280,height=720;
 };
@@ -36,6 +38,7 @@ bool Parse(int argc,char** argv,Options* o) {
  for(int i=1;i<argc;i++){
    std::string_view option=argv[i];
    if(option=="--self-test"){o->self_test=true;continue;}
+   if(option=="--validate-assets"){o->validate_assets=true;continue;}
    if(option=="--headless"){o->headless=true;continue;}
    if(i+1>=argc)return false;
    std::string value=argv[++i];
@@ -136,6 +139,25 @@ int main(int argc,char** argv){
  if(!options.scenario.empty()&&!simulation.scenario(options.scenario)){
    std::fprintf(stderr,"Unknown scenario: %s\n",options.scenario.c_str());
    return 2;
+ }
+ if(options.validate_assets){
+   // Verify the actual renderer font files through native Unicode file handles.
+   const std::array<const wchar_t*,4> fonts={
+      L"barlow-regular.huifont",L"barlow-semibold.huifont",
+      L"barlow-condensed-semibold.huifont",L"noto-greek-fallback.huifont"};
+   for(const auto* font:fonts){
+     const fs::path file=options.assets/"fonts"/font;
+#ifdef _WIN32
+     FILE* input=_wfopen(file.c_str(),L"rb");
+#else
+     FILE* input=std::fopen(Utf8Path(file).c_str(),"rb");
+#endif
+     if(!input){StartupError("Required renderer font could not be opened: "+Utf8Path(file));return 6;}
+     const int first=std::fgetc(input);
+     std::fclose(input);
+     if(first==EOF){StartupError("Renderer font file is empty: "+Utf8Path(file));return 6;}
+   }
+   Log("Packaged renderer font files verified");
  }
  if(options.self_test){
    auto data=simulation.snapshot();
