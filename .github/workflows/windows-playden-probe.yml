@@ -49,6 +49,13 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "Windows filesystem adapter failed compilation" }
           clang-cl /nologo /std:c++20 /EHsc /I src /c windows-playden/managed_file_lock_windows.cpp /Fo:windows-playden/out/managed_file_lock.obj 2>&1 | Tee-Object windows-playden/out/lock-output.txt
           if ($LASTEXITCODE -ne 0) { throw "Windows lock adapter failed compilation" }
+      - name: Run Windows managed filesystem security smoke test
+        shell: pwsh
+        run: |
+          clang-cl /nologo /std:c++20 /EHsc /I src windows-playden/managed_filesystem_smoke.cpp windows-playden/managed_directory_windows.cpp windows-playden/managed_file_lock_windows.cpp /Fe:windows-playden/out/managed_filesystem_smoke.exe 2>&1 | Tee-Object windows-playden/out/fs-smoke-output.txt
+          if ($LASTEXITCODE -ne 0) { throw "Windows filesystem smoke build failed" }
+          & windows-playden/out/managed_filesystem_smoke.exe
+          if ($LASTEXITCODE -ne 0) { throw "Windows filesystem security smoke failed" }
       - name: Build and execute Windows UI platform services smoke test
         shell: pwsh
         run: |
