@@ -52,7 +52,7 @@ jobs:
       - name: Run Windows managed filesystem security smoke test
         shell: pwsh
         run: |
-          clang-cl /nologo /std:c++20 /EHsc /I src windows-playden/managed_filesystem_smoke.cpp windows-playden/managed_directory_windows.cpp windows-playden/managed_file_lock_windows.cpp /Fe:windows-playden/out/managed_filesystem_smoke.exe 2>&1 | Tee-Object windows-playden/out/fs-smoke-output.txt
+          clang-cl /nologo /std:c++20 /EHsc /I src windows-playden/managed_filesystem_smoke.cpp windows-playden/managed_directory_windows.cpp windows-playden/managed_file_lock_windows.cpp windows-playden/ntfs_security.cpp advapi32.lib /Fe:windows-playden/out/managed_filesystem_smoke.exe 2>&1 | Tee-Object windows-playden/out/fs-smoke-output.txt
           if ($LASTEXITCODE -ne 0) { throw "Windows filesystem smoke build failed" }
           & windows-playden/out/managed_filesystem_smoke.exe
           if ($LASTEXITCODE -ne 0) { throw "Windows filesystem security smoke failed" }
@@ -63,6 +63,11 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "Windows host platform build failed" }
           & windows-playden/out/platform_host_smoke.exe
           if ($LASTEXITCODE -ne 0) { throw "Windows host platform runtime smoke failed" }
+      - name: Compile standalone real Playden offline SDL host
+        shell: pwsh
+        run: |
+          clang-cl /nologo /std:c++20 /EHsc /DNOMINMAX /DWIN32_LEAN_AND_MEAN /DGL_GLEXT_PROTOTYPES /FIwindows-playden/probe_config.h /I src /I third_party/ps5-homebrew-ui/src /I third_party/ps5-homebrew-ui/third_party/stb /I third_party/stb /I C:\vcpkg\installed\x64-windows\include /I C:\vcpkg\installed\x64-windows\include\SDL2 /c windows-playden/offline_host.cpp /Fo:windows-playden/out/offline_host.obj 2>&1 | Tee-Object windows-playden/out/offline-host-output.txt
+          if ($LASTEXITCODE -ne 0) { throw "Windows Playden offline SDL host compilation failed" }
       - name: Probe Playden SDL host compilation
         shell: pwsh
         run: |
