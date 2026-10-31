@@ -24,11 +24,22 @@ target_include_directories(playden_library PUBLIC "${CMAKE_SOURCE_DIR}/src"
 target_compile_definitions(playden_library PRIVATE UTF8PROC_STATIC)
 target_compile_features(playden_library PUBLIC cxx_std_17)
 
+if(WIN32 AND NOT PLAYDEN_PLATFORM_PS5)
+    set(playden_identity_sources
+        "${CMAKE_SOURCE_DIR}/windows-playden/effective_uid_windows.cpp"
+        "${CMAKE_SOURCE_DIR}/windows-playden/random_id_windows.cpp")
+else()
+    set(playden_identity_sources
+        "${CMAKE_SOURCE_DIR}/src/platform/effective_uid.cpp"
+        "${CMAKE_SOURCE_DIR}/src/platform/random_id.cpp")
+endif()
 add_library(playden_storage STATIC
-    "${CMAKE_SOURCE_DIR}/src/platform/effective_uid.cpp"
-    "${CMAKE_SOURCE_DIR}/src/platform/random_id.cpp"
+    ${playden_identity_sources}
     "${CMAKE_SOURCE_DIR}/src/platform/storage.cpp"
     "${CMAKE_SOURCE_DIR}/src/platform/durable_storage.cpp")
+if(WIN32 AND NOT PLAYDEN_PLATFORM_PS5)
+    target_link_libraries(playden_storage PUBLIC bcrypt)
+endif()
 target_include_directories(playden_storage PUBLIC "${CMAKE_SOURCE_DIR}/src")
 target_compile_features(playden_storage PUBLIC cxx_std_17)
 target_link_libraries(playden_library PUBLIC playden_storage)
