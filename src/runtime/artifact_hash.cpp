@@ -8,7 +8,12 @@
 #include <cstdint>
 #include <fcntl.h>
 #include <sys/stat.h>
+#ifdef _WIN32
+#include <windows.h>
+#include <io.h>
+#else
 #include <unistd.h>
+#endif
 #include <vector>
 
 namespace playden::runtime {
@@ -17,11 +22,23 @@ namespace {
 class Descriptor {
  public:
   explicit Descriptor(int value) : value_(value) {}
-  ~Descriptor() { if (value_ >= 0) close(value_); }
+  ~Descriptor() { if (value_ >= 0) {
+#ifdef _WIN32
+    _close(value_);
+#else
+    close(value_);
+#endif
+  }}
   Descriptor(const Descriptor&) = delete;
   Descriptor& operator=(const Descriptor&) = delete;
   int get() const { return value_; }
-  void reset(int value) { if (value_ >= 0) close(value_); value_ = value; }
+  void reset(int value) { if (value_ >= 0) {
+#ifdef _WIN32
+    _close(value_);
+#else
+    close(value_);
+#endif
+  } value_ = value; }
  private:
   int value_;
 };
@@ -71,6 +88,33 @@ std::optional<std::string> HashArtifactBytes(std::string_view bytes) {
 }
 
 std::optional<std::string> HashArtifactFile(const std::filesystem::path& path) {
+#ifdef _WIN32
+  Descriptor file(OpenFile(path));
+  if(file.get()<0)return std::nullopt;
+  HANDLE handle=reinterpret_cast<HANDLE>(_get_osfhandle(file.get()));
+  BY_HANDLE_FILE_INFORMATION before{},after{};
+  if(handle==INVALID_HANDLE_VALUE||!GetFileInformationByHandle(handle,&before)||
+     (before.dwFileAttributes&(FILE_ATTRIBUTE_DIRECTORY|FILE_ATTRIBUTE_REPARSE_POINT))||
+     before.nNumberOfLinks!=1)return std::nullopt;
+  Hash hash;
+  if(!hash.Start())return std::nullopt;
+  std::vector<unsigned char> buffer(64*1024);
+  std::uint64_t count=0;
+  for(;;){
+    int bytes=_read(file.get(),buffer.data(),static_cast<unsigned>(buffer.size()));
+    if(bytes<0)return std::nullopt;
+    if(bytes==0)break;
+    count+=bytes;
+    if(!hash.Update(buffer.data(),static_cast<std::size_t>(bytes)))return std::nullopt;
+  }
+  if(!GetFileInformationByHandle(handle,&after))return std::nullopt;
+  const std::uint64_t size=(static_cast<std::uint64_t>(before.nFileSizeHigh)<<32)|before.nFileSizeLow;
+  if(count!=size || before.dwVolumeSerialNumber!=after.dwVolumeSerialNumber ||
+     before.nFileIndexHigh!=after.nFileIndexHigh || before.nFileIndexLow!=after.nFileIndexLow ||
+     before.nFileSizeHigh!=after.nFileSizeHigh || before.nFileSizeLow!=after.nFileSizeLow ||
+     CompareFileTime(&before.ftLastWriteTime,&after.ftLastWriteTime)!=0)return std::nullopt;
+  return hash.Finish();
+#else
   Descriptor file(OpenFile(path));
   struct stat before{}, after{};
   if (file.get() < 0 || fstat(file.get(), &before) != 0 ||
@@ -103,5 +147,6 @@ std::optional<std::string> HashArtifactFile(const std::filesystem::path& path) {
       before.st_ctim.tv_nsec != after.st_ctim.tv_nsec) return std::nullopt;
 #endif
   return hash.Finish();
+#endif
 }
 }  // namespace playden::runtime
