@@ -43,14 +43,12 @@ if(WIN32 AND NOT PLAYDEN_PLATFORM_PS5)
     # Windows-only: use native Windows curl libraries, never Unix .a archives.
     # Live transport is compiled only for explicit opt-in builds. The default
     # Windows mode remains offline and does not make Steam requests.
-    if(PLAYDEN_WINDOWS_OFFLINE_ONLY)
-        # Offline preview has no curl transport; live network is unavailable.
-        add_library(playden_curl_8_22 INTERFACE)
-    else()
-        find_package(CURL CONFIG REQUIRED)
-        add_library(playden_curl_8_22 INTERFACE)
-        target_link_libraries(playden_curl_8_22 INTERFACE CURL::libcurl)
-    endif()
+    # The shared Playden model transitively compiles HTTP code even in offline
+    # simulation. Provide real native curl headers/linkage; offline startup
+    # does not authenticate, fetch manifests, or initiate network requests.
+    find_package(CURL CONFIG REQUIRED)
+    add_library(playden_curl_8_22 INTERFACE)
+    target_link_libraries(playden_curl_8_22 INTERFACE CURL::libcurl)
     set(playden_staged_ca "" CACHE STRING "Windows: use system TLS trust")
 else()
 set(PLAYDEN_STEAM_PREFIX
