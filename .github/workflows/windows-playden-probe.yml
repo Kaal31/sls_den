@@ -5,6 +5,8 @@ on:
     paths:
       - 'windows-playden/**'
       - 'src/homebrew/simulation.cpp'
+      - 'src/homebrew/host.cpp'
+      - 'src/homebrew/mock_console.cpp'
       - '.github/workflows/windows-playden-probe.yml'
   workflow_dispatch:
 permissions:
@@ -35,6 +37,11 @@ jobs:
         run: |
           clang-cl /nologo /std:c++20 /EHsc /I src /I third_party/ps5-homebrew-ui/src /I third_party/stb /I C:\vcpkg\installed\x64-windows\include /I third_party/ps5-homebrew-ui/third_party/stb /DNOMINMAX /DWIN32_LEAN_AND_MEAN /DGL_GLEXT_PROTOTYPES /c src/homebrew/view.cpp /Fo:windows-playden/out/view.obj 2>&1 | Tee-Object windows-playden/out/renderer-output.txt
           if ($LASTEXITCODE -ne 0) { throw "Playden renderer still needs Windows portability fixes" }
+      - name: Compile Windows mock-console fixture service
+        shell: pwsh
+        run: |
+          clang-cl /nologo /std:c++20 /EHsc /I src /I third_party/ps5-homebrew-ui/src /c src/homebrew/mock_console.cpp /Fo:windows-playden/out/mock_console.obj 2>&1 | Tee-Object windows-playden/out/mock-console-output.txt
+          if ($LASTEXITCODE -ne 0) { throw "Windows mock-console compatibility build failed" }
       - name: Build and execute Windows UI platform services smoke test
         shell: pwsh
         run: |
