@@ -5222,16 +5222,18 @@ void Simulation::rebuild_view() {
             check.subtitle="Offline validation of source fallback and manifest metadata; no downloads";
             auto& heading = add("settings-sls-sources", RowKind::Status, "SLS Den · Sources", "");
             heading.subtitle = "SLSDeck source catalogue · offline preview, no network requests";
+            std::vector<std::string> available_keys;
+            for(const auto& field:sls::kKeyDefinitions)
+                if(sls::HasStoredKey(std::string(field.id)))available_keys.emplace_back(field.id);
+            const auto diagnostics=sls::DiagnoseProviders(sls_sources_,available_keys);
             for(std::size_t i=0;i<sls::kDefaultProviders.size();++i){
                 const std::string id="sls-default-"+std::to_string(i);
                 const bool enabled=sls_sources_.enabled(i);
                 auto& entry=add("settings-sls-default-"+std::to_string(i),RowKind::Action,
                                 std::string(sls::kDefaultProviders[i].name),"sls-default-toggle-"+std::to_string(i));
                 entry.value=enabled?"Enabled":"Disabled";
-                entry.subtitle=std::string(sls::kDefaultProviders[i].url_template)+
-                   (!sls::kDefaultProviders[i].required_key.empty() &&
-                    !sls::HasStoredKey(std::string(sls::kDefaultProviders[i].required_key))?
-                    " · API key needed":" · Offline fixture mode");
+                entry.subtitle=diagnostics[i].status+" · "+std::string(sls::kDefaultProviders[i].url_template);
+
             }
             for(const auto& field:sls::kKeyDefinitions){
                 auto& row=add("settings-sls-key-"+std::string(field.id),RowKind::Action,
