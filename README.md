@@ -1,8 +1,11 @@
 <p align="center"><img src="docs/images/icon.png" alt="Playden icon" width="128"></p>
 
-# Playden for PS5
+# Lua Den — Playden-based PS5 project
 
-**Play your Steam library's Windows games on a jailbroken PS5.**
+**Lua Den is an experimental Playden-derived PS5 project integrating a reusable Lua manifest-source subsystem.**
+
+> The `windows-preview` branch provides an offline Windows UI and source-fixture test harness. It does not currently perform game downloads, and source integration on PS5 has not been hardware-validated. The GitHub repository remains named `sls_den` for now; internal Playden names are retained for compatibility.
+
 
 [![Discord](https://img.shields.io/discord/1562443095629373590?label=Discord&logo=discord&logoColor=white)](https://discord.gg/wd8UjExpPA)
 [![Reddit](https://img.shields.io/badge/Reddit-r%2FPlayden__PS5-FF4500?logo=reddit&logoColor=white)](https://www.reddit.com/r/Playden_PS5/)
