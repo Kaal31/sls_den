@@ -3,6 +3,8 @@
 // UI and transports depend on this model; this model never accesses networks or secrets.
 #include <array>
 #include <cstddef>
+#include <set>
+#include <string>
 #include <string_view>
 
 namespace playden::sls {
@@ -29,6 +31,21 @@ inline bool ValidKeyId(std::string_view id) {
     for(const auto& field:kKeyDefinitions) if(field.id==id) return true;
     return false;
 }
+class ProviderSelection {
+public:
+    bool enabled(std::size_t index) const {
+        return index<kDefaultProviders.size() &&
+               !disabled_.contains(std::string(kDefaultProviders[index].id));
+    }
+    bool toggle(std::size_t index) {
+        if(index>=kDefaultProviders.size()) return false;
+        const std::string id(kDefaultProviders[index].id);
+        if(!disabled_.erase(id)) disabled_.insert(id);
+        return true;
+    }
+private:
+    std::set<std::string> disabled_;
+};
 inline bool ProviderEnabled(std::size_t index, std::string_view disabled_csv) {
     if(index>=kDefaultProviders.size()) return false;
     const auto id=kDefaultProviders[index].id;
