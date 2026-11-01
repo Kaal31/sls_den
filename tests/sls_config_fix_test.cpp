@@ -55,7 +55,9 @@ int main(){
  playden::sls::VerifiedGameRoot authorized{12345,root,"1.0",true,true,true};
  check(playden::sls::CheckGameFixAvailability(authorized,{vetted})==playden::sls::GameFixAvailability::Available,"curated fix is available");
  check(playden::sls::ApplyCuratedGameFix(authorized,vetted)==FixResult::Applied,"curated fix applies to verified game");
- check(playden::sls::RemoveCuratedGameFix(authorized,vetted)==FixResult::Restored,"curated fix reversible");
+ auto upgraded=authorized;upgraded.version="2.0";
+ check(playden::sls::InspectConfigFix(root,vetted.relative_path)==FixResult::Applied,"fix remains present after version changes");
+ check(playden::sls::RemoveCuratedGameFix(upgraded,vetted)==FixResult::Restored,"Unfix remains available after game update");
  auto no_install=authorized; no_install.installed=false;
  check(playden::sls::ApplyCuratedGameFix(no_install,vetted)==FixResult::UnsafePath,"no catalog-only fix application");
  auto other=authorized; other.app_id=12346;
