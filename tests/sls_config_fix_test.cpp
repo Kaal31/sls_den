@@ -48,6 +48,10 @@ int main(){
  {std::ofstream o(root/"drive_c"/"game"/"new.ini",std::ios::binary|std::ios::trunc);o<<"managed=true\n";}
  check(RestoreConfigFix(root,"drive_c/game/new.ini")==FixResult::Restored,"recovered after created file conflict");
  check(RestoreConfigFix(root,"drive_c/game/new.ini")==FixResult::NotApplied,"idempotent Unfix");
+ check(ApplyConfigFix(root,"drive_c/game/settings.ini","original=3\n")==FixResult::Applied,"apply replacement after successful restore");
+ check(read(file)=="original=3\n","replacement after restore");
+ check(RestoreConfigFix(root,"drive_c/game/settings.ini")==FixResult::Restored,"restore repeated replacement");
+ check(read(file)=="original=1\n","repeated replacement restored original");
  check(ApplyConfigFix(root,"../escape.ini","bad")==FixResult::UnsafePath,"reject traversal");
  check(ApplyConfigFix(root,fs::absolute(root/"escape.ini"),"bad")==FixResult::UnsafePath,"reject absolute path");
  check(ApplyConfigFix(root,"drive_c/game/settings.ini",std::string(1024*1024+1,'x'))==FixResult::TooLarge,"reject oversized payload");
