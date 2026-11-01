@@ -85,4 +85,24 @@ setManifestid(480, "123456789")
     });
   assert(!missing.ok && unkeyed_calls == 3);
   assert(missing.attempts.back().status == "missing_key");
+  // ZIPs are rejected until a bounded, CRC-checking host decoder is supplied.
+  auto zip_payload=[](const std::string&,const std::string&,std::uint32_t,
+                      std::string_view,std::string* payload,std::string*) {
+    *payload=std::string("PK\\x03\\x04",4)+"fixture-zip";
+    return true;
+  };
+  auto blocked=DiscoverManifestWithCredentials(480,selection,
+    [](std::string_view,std::string* out){*out="fixture-key";return true;},zip_payload);
+  assert(!blocked.ok && blocked.attempts.back().status=="invalid_archive");
+  auto decoded=DiscoverManifestWithCredentials(480,selection,
+    [](std::string_view,std::string* out){*out="fixture-key";return true;},zip_payload,
+    [](std::string_view bytes,std::uint32_t app,std::string* manifest,std::string*) {
+      assert(bytes.size()>4 && app==480);
+      *manifest=R"(addappid(480)
+setManifestid(480, "123456789")
+)";
+      return true;
+    });
+  assert(decoded.ok && decoded.source_id=="sushi" && decoded.metadata.depots.size()==1);
+
 }
