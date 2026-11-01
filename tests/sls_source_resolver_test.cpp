@@ -14,9 +14,7 @@ int main() {
   auto fetch = [&](const std::string& url, std::string* payload, std::string* error) {
     ++requests;
     if (url.find("first.example") != std::string::npos) {
-    *payload = R"(addappid(480)
-setManifestid(480, "123456789")
-)";
+      *payload = "invalid";
       return true;
     }
     *payload = R"(addappid(480)
