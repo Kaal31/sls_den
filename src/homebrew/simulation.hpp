@@ -893,6 +893,7 @@ private:
     State state_;
     // Session-only credentials for the offline preview; never part of saved profiles or snapshots.
     std::map<std::string, std::string> sls_preview_keys_;
+    std::set<std::string> sls_source_disabled_; // Offline preview toggles, no network activity.
     ViewData view_;
     ViewData route_view_;
     std::string last_error_;
