@@ -5206,6 +5206,21 @@ void Simulation::rebuild_view() {
                 }
             }
         }
+        if(game) {
+            // The fixes UI must never imply that a public manifest is a verified
+            // game patch. Report readiness based on the actual installation.
+            auto& fixes=row("details-fixes",RowKind::Action,"Fixes","details-fixes-info");
+            if(!installed) {
+                fixes.value="Unavailable";
+                fixes.subtitle="Install this game before checking compatible fixes";
+            } else if(!installation->available) {
+                fixes.value="Storage unavailable";
+                fixes.subtitle="Reconnect the installed game's storage";
+            } else {
+                fixes.value="Not configured";
+                fixes.subtitle="No verified fix definitions are installed for this game";
+            }
+        }
         row("details-favorite", RowKind::Toggle, "Favorite", "favorite").selected = game && state_.library.favorites.contains(game->id);
         if (!live()) row("details-simulate-launch", RowKind::Action, "Simulate launch", "launch");
         row("details-more", RowKind::Action, "More", "context");
@@ -6747,6 +6762,16 @@ void Simulation::activate() {
             --catalog_display_page_;
             state_.navigation.focus_key="steam-catalog-heading";
         }
+    }
+    else if(action_name=="details-fixes-info") {
+        const auto id=state_.navigation.detail_id.value_or(state_.navigation.selected_game_id);
+        const auto installed=std::find_if(state_.installations.begin(),state_.installations.end(),
+            [&](const Installation& value){return value.game_id==id && value.available;});
+        push_notice({"fixes-readiness",
+            installed==state_.installations.end()
+                ? "No available installation for this game. Fixes cannot be applied."
+                : "No vetted game-specific fix definitions are currently configured. No files were changed.",
+            "",false,0,true});
     }
     else if(action_name=="protondb-info") {
         const auto game_id=state_.navigation.detail_id.value_or(state_.navigation.selected_game_id);
