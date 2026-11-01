@@ -909,6 +909,8 @@ private:
     std::string catalog_search_status_;
     std::string catalog_search_query_;
     sls::SteamCatalogPage catalog_search_results_;
+    std::map<std::uint32_t,std::string> manually_added_games_;
+    void SaveAddedGames() const;
     std::set<std::uint32_t> denuvo_known_;
     std::map<std::uint32_t,std::string> protondb_ratings_;
     std::size_t catalog_display_page_ = 0;
