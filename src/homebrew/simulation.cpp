@@ -822,6 +822,7 @@ void Simulation::SetProtonDbRatings(std::map<std::uint32_t,std::string> ratings)
 void Simulation::SetDenuvoKnown(std::set<std::uint32_t> appids) {
     if(denuvo_known_==appids)return;
     denuvo_known_=std::move(appids);
+    state_.denuvo_cover_ids=denuvo_known_;
     rebuild_view();
 }
 
@@ -5120,6 +5121,18 @@ void Simulation::rebuild_view() {
             if (runtime && runtime->queued && runtime->uninstall_status.empty() && position > 1)
                 row("details-prepare-next", RowKind::Action, "Prepare next", "details-prepare-next").game_id = game->id;
         }
+        // A public ProtonDB tier is informational, not a Playden compatibility claim.
+        if(game && state_.badge_enabled[4]) {
+            if(const auto app=game->id.steam_app()) {
+                const auto rating=protondb_ratings_.find(*app);
+                if(rating!=protondb_ratings_.end()) {
+                    auto& proton=row("details-protondb",RowKind::Action,"ProtonDB community rating","protondb-info");
+                    proton.value=rating->second;
+                    proton.subtitle="Linux Proton community reports · Steam App ID "+std::to_string(*app)+
+                        " · not a PS5 compatibility rating";
+                }
+            }
+        }
         row("details-favorite", RowKind::Toggle, "Favorite", "favorite").selected = game && state_.library.favorites.contains(game->id);
         if (!live()) row("details-simulate-launch", RowKind::Action, "Simulate launch", "launch");
         row("details-more", RowKind::Action, "More", "context");
@@ -6661,6 +6674,12 @@ void Simulation::activate() {
             --catalog_display_page_;
             state_.navigation.focus_key="steam-catalog-heading";
         }
+    }
+    else if(action_name=="protondb-info") {
+        const auto game_id=state_.navigation.detail_id.value_or(state_.navigation.selected_game_id);
+        if(const auto app=game_id.steam_app())
+            push_notice({"protondb-information","ProtonDB: https://www.protondb.com/app/"+std::to_string(*app)+
+                " · Linux community compatibility, not PS5 compatibility.","",false,0,true});
     }
     else if(action_name.rfind("badge-toggle-",0)==0) {
         const std::string index=action_name.substr(13);
