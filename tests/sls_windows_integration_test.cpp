@@ -46,7 +46,7 @@ int main() {
   const auto unowned=sls::ResolveInstallMetadata(400,sources,
     [&](const std::string& url,std::string* text,std::string*) {
       if(url.find("backup.example")==std::string::npos)return false;
-      *text="addappid(410)\\nsetManifestid(410, \\"9999\\")\\n";
+      *text="addappid(410)\nsetManifestid(410, \"9999\")\n";
       return true;
     },no_grants);
   require(unowned.depots.empty(),"unowned game may not generate authorized depots");
@@ -54,8 +54,8 @@ int main() {
   const auto injected=sls::ResolveInstallMetadata(400,sources,
     [&](const std::string& url,std::string* text,std::string*) {
       if(url.find("backup.example")==std::string::npos)return false;
-      *text="addappid(410)\\nsetManifestid(410, \\"9999\\")\\n"
-            "addappid(999)\\nsetManifestid(999, \\"3333\\")\\n";
+      *text="addappid(410)\nsetManifestid(410, \"9999\")\n"
+            "addappid(999)\nsetManifestid(999, \"3333\")\n";
       return true;
     },granted);
   require(injected.depots.size()==1 && injected.depots[0].id==410 &&
