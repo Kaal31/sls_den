@@ -4,6 +4,8 @@
 #include <atomic>
 namespace playden::sls {
 // Real HTTPS adapter, shared by Windows and PS5 builds. The host owns HttpClient.
+bool RefreshLuatoolsViaHttp(steam::HttpClient& http,const std::atomic<bool>& cancel,
+                           const LuatoolsSession& prior,LuatoolsSession* renewed);
 bool RedeemLuatoolsViaHttp(steam::HttpClient& http,const std::atomic<bool>& cancel,
                             std::string_view bot_code,LuatoolsSession* session);
 }
