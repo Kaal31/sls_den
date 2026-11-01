@@ -10,6 +10,9 @@ enum class FixResult { Applied, Restored, AlreadyApplied, NotApplied, UnsafePath
 FixResult ApplyConfigFix(const std::filesystem::path& game_root,
                          const std::filesystem::path& relative,
                          std::string_view replacement);
+// Returns Applied only when the current bytes exactly match the saved fix.
+FixResult InspectConfigFix(const std::filesystem::path& game_root,
+                           const std::filesystem::path& relative);
 FixResult RestoreConfigFix(const std::filesystem::path& game_root,
                            const std::filesystem::path& relative);
 }
