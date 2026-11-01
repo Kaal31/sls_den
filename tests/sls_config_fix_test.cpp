@@ -36,6 +36,14 @@ int main(){
  check(read(file)=="user-change=1\n","modified content retained");
  {std::ofstream o(file,std::ios::binary|std::ios::trunc);o<<"patched=1\n";}
  check(RestoreConfigFix(root,"drive_c/game/settings.ini")==FixResult::Restored,"restore after resolving conflict");
+ // A created file changed by the user must never be deleted by Unfix.
+ check(ApplyConfigFix(root,"drive_c/game/new.ini","managed=true\n")==FixResult::Applied,"recreate new file");
+ {std::ofstream o(root/"drive_c"/"game"/"new.ini",std::ios::binary|std::ios::trunc);o<<"user-owned=true\n";}
+ check(RestoreConfigFix(root,"drive_c/game/new.ini")==FixResult::Conflict,"created file changes protected");
+ check(read(root/"drive_c"/"game"/"new.ini")=="user-owned=true\n","modified new file kept");
+ {std::ofstream o(root/"drive_c"/"game"/"new.ini",std::ios::binary|std::ios::trunc);o<<"managed=true\n";}
+ check(RestoreConfigFix(root,"drive_c/game/new.ini")==FixResult::Restored,"recovered after created file conflict");
+ check(RestoreConfigFix(root,"drive_c/game/new.ini")==FixResult::NotApplied,"idempotent Unfix");
  check(ApplyConfigFix(root,"../escape.ini","bad")==FixResult::UnsafePath,"reject traversal");
  check(ApplyConfigFix(root,fs::absolute(root/"escape.ini"),"bad")==FixResult::UnsafePath,"reject absolute path");
  check(ApplyConfigFix(root,"drive_c/game/settings.ini",std::string(1024*1024+1,'x'))==FixResult::TooLarge,"reject oversized payload");
