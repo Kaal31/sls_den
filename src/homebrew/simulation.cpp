@@ -877,7 +877,7 @@ void Simulation::SetVerifiedGameFixes(
     for(const auto& def:curated_fixes_) {
         const auto root=verified_fix_roots_.find(def.steam_app_id);
         if(root!=verified_fix_roots_.end() &&
-           sls::CheckGameFixAvailability(root->second,{def})==sls::GameFixAvailability::Available &&
+           root->second.installed && root->second.volume_available && root->second.runtime_supported &&
            sls::InspectConfigFix(root->second.root,def.relative_path)==sls::FixResult::Applied)
             state_.fixed_cover_ids.insert(def.steam_app_id);
     }
@@ -5243,7 +5243,16 @@ void Simulation::rebuild_view() {
                             auto& undo=row("fix-undo-"+fix.id,RowKind::Action,"Unfix "+fix.title,"curated-fix-undo");
                             undo.subtitle="Restore original configuration unless user changes conflict";
                         }
-                    } else if(availability==sls::GameFixAvailability::VersionMismatch)fixes.value="Version mismatch";
+                    } else if(availability==sls::GameFixAvailability::VersionMismatch) {
+                        fixes.value="Version mismatch";
+                        fixes.subtitle="Apply disabled for this version; previously applied fixes can still be restored";
+                        for(const auto& fix:curated_fixes_) {
+                            if(fix.steam_app_id!=*app ||
+                               sls::InspectConfigFix(root->second.root,fix.relative_path)!=sls::FixResult::Applied) continue;
+                            auto& undo=row("fix-undo-"+fix.id,RowKind::Action,"Unfix "+fix.title,"curated-fix-undo");
+                            undo.subtitle="Restore previously applied configuration";
+                        }
+                    }
                     else if(availability==sls::GameFixAvailability::RuntimeUnsupported)fixes.value="Unsupported runtime";
                     else if(availability==sls::GameFixAvailability::StorageUnavailable)fixes.value="Storage unavailable";
                     else if(availability==sls::GameFixAvailability::NoDefinitions)fixes.value="No vetted fixes";
