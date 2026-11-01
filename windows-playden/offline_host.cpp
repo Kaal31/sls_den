@@ -227,6 +227,28 @@ int main(int argc,char** argv){
       StartupError("Provider API key leaked into simulation snapshot");return 8;
    }
    Log("SLS source key masking and snapshot protection smoke test passed");
+   // Lua.tools uses a one-time Discord bot code, not a long-lived Hubcap key.
+   if(!simulation.action("route:settings") ||
+      !simulation.action("focus:settings-luatools-bot-code")){
+     StartupError("lua.tools bot-code editor missing from Settings");return 8;
+   }
+   simulation.action("cross");
+   const std::string bot_code="LUA-TEST-1942";
+   simulation.text(bot_code);
+   if(simulation.snapshot().find(bot_code)!=std::string::npos){
+     StartupError("lua.tools bot code leaked into snapshot");return 8;
+   }
+   simulation.action("done");
+   auto requested=simulation.TakeLuatoolsBotCode();
+   if(!requested || *requested!=bot_code || simulation.TakeLuatoolsBotCode()){
+     StartupError("lua.tools one-time code handoff failed");return 8;
+   }
+   std::fill(requested->begin(),requested->end(),char(0));
+   if(simulation.snapshot().find(bot_code)!=std::string::npos){
+     StartupError("lua.tools bot code leaked after editor closed");return 8;
+   }
+   Log("lua.tools bot-code input and one-time handoff smoke test passed");
+
    // Source rows must be focusable, selectable, and reversible without network I/O.
    if(!simulation.action("route:settings") ||
       !simulation.action("focus:settings-sls-default-0")){
