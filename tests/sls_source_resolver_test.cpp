@@ -127,7 +127,9 @@ setManifestid(480, "123456789")
     put16(z,1);put32(z,central.size());put32(z,offset);put16(z,0);
     return z;
   };
-  const std::string lua="addappid(480)\\nsetManifestid(480, \\"123456789\\")\\n";
+  const std::string lua=R"(addappid(480)
+setManifestid(480, "123456789")
+)";
   std::string extracted,why;
   auto valid_zip=make_zip("480.lua",lua);
   assert(DecodeStoredZipManifest(valid_zip,480,&extracted,&why) && extracted==lua);
