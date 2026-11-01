@@ -180,6 +180,26 @@ int main(int argc,char** argv){
      StartupError("Details back navigation did not restore Library");return 8;
    }
    Log("Game-card details and back navigation test passed");
+   // Hover selects a cover without opening it; clicks still open Details.
+   if(!simulation.action("route:library") ||
+      !simulation.action("select:900002")){
+     StartupError("Hovered library cover selection failed");return 8;
+   }
+   const std::string hovered=simulation.snapshot();
+   if(hovered.find(R"("route":"library")")==std::string::npos ||
+      hovered.find(R"("selected_game_id":900002)")==std::string::npos){
+     StartupError("Hover changed the route or failed to select the cover");return 8;
+   }
+   if(!simulation.action("details:900002") ||
+      simulation.snapshot().find(R"("route":"details")")==std::string::npos){
+     StartupError("Hovered cover click did not open Details");return 8;
+   }
+   if(!simulation.action("route:home") || !simulation.action("select:900001") ||
+      simulation.snapshot().find(R"("route":"home")")==std::string::npos){
+     StartupError("Home cover hover unexpectedly opened game details");return 8;
+   }
+   Log("Home and Library hover selection versus click activation tests passed");
+
 
    Log("Five-route navigation and cross/circle action smoke test passed");
  }
