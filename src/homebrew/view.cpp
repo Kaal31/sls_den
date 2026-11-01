@@ -1040,6 +1040,7 @@ class Render::Impl
         if (focused && route_focus_)
             stats_.focused_control_key = row.key;
         const float amount = control_focus(row.key, focused && route_focus_);
+        if(row.enabled) add_hit(rect, row.action);
         const auto title = row.kind == RowKind::Toggle ? row.title + (row.selected ? " · On" : " · Off") : row.title;
         mac_button(scene_, rect, title, primary && row.enabled, amount, !row.enabled, row.value, primary && rect.h >= 80.0F);
     }
@@ -2390,6 +2391,8 @@ class Render::Impl
             const gfx::Rect card{left, y, width, h};
             // The title, summary and control sit in the row's usual height; the drive's bar goes below.
             const gfx::Rect head{left, y, width, drive_row(row) ? 118.0F : h};
+            if(row.enabled && row.kind != RowKind::Status && y>=200.0F && y+h<=kFooterY)
+                add_hit(card, row.action);
             const bool is_focused = route_focus_ && !rail && index == focused;
             if (is_focused)
                 stats_.focused_control_key = row.key;
