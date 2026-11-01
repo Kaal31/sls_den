@@ -64,6 +64,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "Windows first-run scenario initialization failed" }
           & build/windows-offline/playden-windows-offline.exe --scenario offline --self-test
           if ($LASTEXITCODE -ne 0) { throw "Windows offline scenario initialization failed" }
+          & build/windows-offline/playden-windows-offline.exe --navigation-self-test --self-test
+          if ($LASTEXITCODE -ne 0) { throw "Windows navigation/activation regression test failed" }
       - name: Bundle actual Playden Windows application
         shell: pwsh
         run: |
