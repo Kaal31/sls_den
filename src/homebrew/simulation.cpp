@@ -815,6 +815,7 @@ std::optional<std::string> Simulation::TakeSteamCatalogSearchRequest() {
 void Simulation::UpdateSteamCatalogResults(std::string query,sls::SteamCatalogPage page) {
     if(query!=catalog_search_query_)return; // An old worker must not replace a new query.
     catalog_search_results_=std::move(page);
+    catalog_display_page_=0;
     catalog_search_status_=std::to_string(catalog_search_results_.titles.size())+" Steam Store results";
 }
 void Simulation::FailSteamCatalogSearch(std::string query) {
@@ -4769,9 +4770,29 @@ void Simulation::rebuild_view() {
         }
         // Public results are actions, not Game rows; no implied ownership, installation or Play action.
         if(catalog_search_query_==state_.library.query && !catalog_search_results_.titles.empty()) {
-            for(const auto& hit:catalog_search_results_.titles) {
+            constexpr std::size_t kCatalogPageSize=12;
+            const auto page_count=(catalog_search_results_.titles.size()+kCatalogPageSize-1)/kCatalogPageSize;
+            const auto page_index=std::min(catalog_display_page_,page_count-1);
+            const auto first=page_index*kCatalogPageSize;
+            const auto last=std::min(first+kCatalogPageSize,catalog_search_results_.titles.size());
+            auto& heading=row("steam-catalog-heading",RowKind::Action,
+                              "Steam Store · Results","steam-catalog-search");
+            heading.subtitle="Showing "+std::to_string(first+1)+"–"+std::to_string(last)+
+                " of "+std::to_string(catalog_search_results_.titles.size())+
+                " · public catalog, not owned library";
+            for(std::size_t i=first;i<last;++i) {
+                const auto& hit=catalog_search_results_.titles[i];
                 auto& result=row("steam-catalog-"+std::to_string(hit.app_id),RowKind::Action,hit.name,"steam-catalog-info");
-                result.subtitle="Steam Store · App ID "+std::to_string(hit.app_id)+" · not verified as owned";
+                result.subtitle="Steam App ID "+std::to_string(hit.app_id)+" · Open information";
+                result.badge="Store";
+            }
+            if(page_index>0) {
+                auto& previous=row("steam-catalog-prev",RowKind::Action,"Previous store results","steam-catalog-previous");
+                previous.subtitle="Page "+std::to_string(page_index)+" of "+std::to_string(page_count);
+            }
+            if(page_index+1<page_count) {
+                auto& next=row("steam-catalog-next",RowKind::Action,"More store results","steam-catalog-next");
+                next.subtitle="Page "+std::to_string(page_index+2)+" of "+std::to_string(page_count);
             }
         }
         // An empty grid offers the way back to the games it hides; Connect a store is only for a missing catalog.
@@ -6573,7 +6594,21 @@ void Simulation::activate() {
             pending_catalog_search_=q;
             catalog_search_query_=q;
             catalog_search_results_={};
+            catalog_display_page_=0;
             catalog_search_status_="Searching Steam Store…";
+        }
+    }
+    else if (action_name == "steam-catalog-next") {
+        if(catalog_search_query_==state_.library.query &&
+           (catalog_display_page_+1)*12<catalog_search_results_.titles.size()) {
+            ++catalog_display_page_;
+            state_.navigation.focus_key="steam-catalog-heading";
+        }
+    }
+    else if (action_name == "steam-catalog-previous") {
+        if(catalog_display_page_>0) {
+            --catalog_display_page_;
+            state_.navigation.focus_key="steam-catalog-heading";
         }
     }
     else if (action_name == "steam-catalog-info") {
