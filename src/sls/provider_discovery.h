@@ -4,6 +4,7 @@
 // Keyed providers are excluded until an authenticated transport is installed.
 #include "sls/provider_registry.h"
 #include "sls/source_resolver.h"
+#include "sls/zip_manifest.h"
 #include <algorithm>
 #include <cstdint>
 #include <functional>
@@ -66,7 +67,7 @@ using ZipManifestDecoder = std::function<bool(
 inline Resolution DiscoverManifestWithCredentials(
     std::uint32_t app_id, const ProviderSelection& selection,
     const CredentialLookup& lookup, const CredentialSourceFetch& fetch,
-    const ZipManifestDecoder& decode_zip = {}) {
+    const ZipManifestDecoder& decode_zip = DecodeStoredZipManifest) {
     Resolution result;
     if(!app_id || !fetch)return result;
     for(std::size_t i=0;i<kDefaultProviders.size();++i){
