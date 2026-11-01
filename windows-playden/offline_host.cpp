@@ -149,7 +149,8 @@ int main(int argc,char** argv){
      if(!simulation.action(std::string("route:")+route)){
        StartupError(std::string("Navigation test could not switch to ")+route);return 8;
      }
-     if(simulation.snapshot().find(std::string("\\\"route\\\":\\\"")+route+"\\\"")==std::string::npos){
+     const std::string expected = std::string(R"("route":")")+route+R"(")";
+     if(simulation.snapshot().find(expected)==std::string::npos){
        StartupError(std::string("Navigation route mismatch: ")+route);return 8;
      }
      simulation.action("down");
