@@ -1,4 +1,5 @@
 #include "sls/config_fix.h"
+#include "sls/game_fix_service.h"
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -47,6 +48,19 @@ int main(){
  check(ApplyConfigFix(root,"../escape.ini","bad")==FixResult::UnsafePath,"reject traversal");
  check(ApplyConfigFix(root,fs::absolute(root/"escape.ini"),"bad")==FixResult::UnsafePath,"reject absolute path");
  check(ApplyConfigFix(root,"drive_c/game/settings.ini",std::string(1024*1024+1,'x'))==FixResult::TooLarge,"reject oversized payload");
+ playden::sls::CuratedConfigFix vetted{12345,"local-config","Trusted local test fix","drive_c/game/curated.ini","enabled=1\n","1.0"};
+ playden::sls::VerifiedGameRoot authorized{12345,root,"1.0",true,true,true};
+ check(playden::sls::CheckGameFixAvailability(authorized,{vetted})==playden::sls::GameFixAvailability::Available,"curated fix is available");
+ check(playden::sls::ApplyCuratedGameFix(authorized,vetted)==FixResult::Applied,"curated fix applies to verified game");
+ check(playden::sls::RemoveCuratedGameFix(authorized,vetted)==FixResult::Restored,"curated fix reversible");
+ auto no_install=authorized; no_install.installed=false;
+ check(playden::sls::ApplyCuratedGameFix(no_install,vetted)==FixResult::UnsafePath,"no catalog-only fix application");
+ auto other=authorized; other.app_id=12346;
+ check(playden::sls::ApplyCuratedGameFix(other,vetted)==FixResult::UnsafePath,"no cross-game fix");
+ auto unsupported=authorized; unsupported.runtime_supported=false;
+ check(playden::sls::ApplyCuratedGameFix(unsupported,vetted)==FixResult::UnsafePath,"no unsupported-runtime fix");
+ auto mismatch=authorized; mismatch.version="2.0";
+ check(playden::sls::CheckGameFixAvailability(mismatch,{vetted})==playden::sls::GameFixAvailability::VersionMismatch,"version mismatch surfaced");
  fs::remove_all(root,ec);
  std::cout<<"PASS: reversible config fixes and path safety\n";
 }
