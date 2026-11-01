@@ -298,6 +298,26 @@ int main(int argc,char** argv){
    }
    fs::remove_all(added_test_dir,added_error);
    Log("Manual game registration persistence and ownership isolation passed");
+   // The game-details fixes entry must stay informational until a verified fix
+   // catalogue is attached. It must never advertise Apply/Unfix prematurely.
+   simulation.action("route:home");
+   simulation.action("route:library");
+   auto game_row=std::find_if(simulation.view().rows.begin(),simulation.view().rows.end(),
+     [](const auto& row){return row.kind==playden::homebrew::RowKind::Game;});
+   if(game_row!=simulation.view().rows.end()) {
+     const std::string focus=game_row->key;
+     if(!simulation.action("focus:"+focus) || !simulation.action("cross")) {
+       StartupError("Could not open game details for fixes status smoke test");return 8;
+     }
+     const auto& detail_rows=simulation.view().rows;
+     const auto fixes=std::find_if(detail_rows.begin(),detail_rows.end(),
+       [](const auto& row){return row.key=="details-fixes" && row.action=="details-fixes-info";});
+     if(fixes==detail_rows.end()) {
+       StartupError("Game details lack the safe fixes readiness entry");return 8;
+     }
+   }
+   Log("Game detail fixes readiness UI smoke test passed");
+
    simulation.action("route:home");
    simulation.action("route:library");
    simulation.action("focus:clear-search");
