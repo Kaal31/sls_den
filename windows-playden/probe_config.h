@@ -6,3 +6,5 @@
 #define PLAYDEN_HOMEBREW_DEFAULT_PROFILE "build/windows-preview/homebrew-profile.json"
 #define PLAYDEN_HOMEBREW_DEFAULT_DATA_DIR "build/windows-preview/playden-data"
 #define PLAYDEN_HOMEBREW_CA_BUNDLE "build/windows-preview/trust/cacert.pem"
+
+#define PLAYDEN_MOCK_CONSOLE_FIXTURE "fixtures/ui-comparison/mock-console.json"
