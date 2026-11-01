@@ -339,7 +339,7 @@ int main(int argc,char** argv){
       if(provider!="morrenus" || appid!=480 ||
          url.find("<moapikey>")==std::string::npos ||
          credential!=fixture_key) return false;
-      *payload="addappid(480)\\nsetManifestid(480, \\"123456789\\")\\n";
+      *payload="addappid(480)\nsetManifestid(480, \"123456789\")\n";
       return true;
    };
    auto missing_key_resolution=playden::sls::DiscoverManifestWithCredentials(
