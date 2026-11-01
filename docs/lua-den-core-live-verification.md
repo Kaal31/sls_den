@@ -8,12 +8,12 @@
 | --- | --- | --- |
 | Public Steam catalog discovery | HTTPS worker, parser and UI search results wired | PS5 system keyboard search + real network result + correct game ID |
 | Select/inspect result | UI displays catalog IDs; detail page incomplete | Dedicated game details with actionable origin and entitlement state |
-| Add/register game | No complete public-result-to-registered-game pipeline | Persist registration origin separately from Steam ownership; show in unified Library with ADDED badge |
+| Add/register game | Catalog result → Add Lua Den registration action persists an independent registry; no install/launch | Persist registration origin separately from Steam ownership; show in unified Library with ADDED badge |
 | Provider manifest discovery | Resolver, key fields, source fallbacks and offline fixture tests | Live HTTP fetch with sanitized diagnostics, failure handling and compatible metadata |
 | Authorized content installation | Existing Playden Steam installer and authorized depot planner | Explicit Steam entitlement and manifest verification; never use third-party GIDs to expand access |
 | Native runtime preparation | Playden runtime/bottle services exist | PS5 kit admission, title registration, first launch and return-to-Library verified on hardware |
 | Fix discovery/listing | Unchained/SLSDeck reviewed, no PS5 live fix workflow connected | Per-game choices, source, requirements, applicability status and progress |
-| Fix application and removal | Not yet connected | Safe file operation, hash/backup journal, rollback and verified Un-fix |
+| Fix application and removal | Unit-tested config apply/unfix exists; UI and vetted metadata still not connected | Safe file operation, hash/backup journal, rollback and verified Un-fix |
 | Offline resilience | Badge caches persist; source behavior varies | Disconnect/restart retains registrations, metadata, saves, and verified fixes; no endless spinner |
 
 ## Essential test routes
@@ -32,3 +32,10 @@ Firmware and runtime-kit revision, game app ID, source selection, exact steps, w
 ## Implementation policy
 
 Keep store-wide search independent from Steam entitlements. A source-discovered title is not a license. Provider manifests are metadata until content access is independently authorized. No unreviewed executable patch may be applied automatically. Native PS5 capabilities must be tested on console; Windows Actions can validate portable logic and offline UI only.
+
+## Current implementation follow-up (2026-11-01)
+
+- Manual registrations are stored in `added-games.txt` beside Lua Den provider preferences. Public results provide an explicit **Add to Lua Den** action; separately registered entries are displayed with **ADDED**, and can be unregistered without modifying installed content. A registration is not an entitlement, installed game, or PS5 package.
+- `src/sls/config_fix.{h,cpp}` provides an intentionally narrow on-disk configuration replacement/creation with original backup and Unfix. It refuses traversal, absolute paths, symlink targets, and files larger than 1 MiB. It is not yet attached to remote provider fixes or executable patching.
+- `tests/sls_config_fix_test.cpp` and the Windows UI smoke test cover the basic reversible operation, registration and restart behavior; Windows Action outcomes must be checked at the current head.
+- Still blocked on console hardware: provider HTTP credentials/metadata diagnostics in PS5 execution, true Steam entitlement state, runtime kit provisioning, title registration, launch and cleanup.
