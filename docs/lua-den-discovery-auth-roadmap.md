@@ -30,3 +30,13 @@ Reference: https://github.com/Kaal31/Unchained
 
 ## Source and security boundaries
 Do not infer licenses or installability from Steam store search results. Limit query length, result count, response bytes, and timeouts. The Steam HTML parser is a compatibility risk: changes upstream may require updating fixtures. Prefer official supported search APIs if one becomes available.
+
+## Future milestone: unified reversible configuration fixes
+
+Implement a single PS5-runtime-aware configuration-fix engine with two operations:
+1. **Modify existing configuration** (INI or supported structured settings): preserve all unrelated values and refuse missing files unless the fix explicitly opts into creation.
+2. **Create or replace configuration**: write a complete verified configuration file in the game's resolved install path or Playden private bottle, not an assumed `.wine/drive_c` location.
+
+Before changing any file, make an atomic original backup (or record that the original was absent); track hashes, ownership, game/version, origin, timestamps and the operation in a per-game journal. Implement **Restore / Un-fix**, cancellation-safe rollback, no overwrite across user edits, and idempotent re-apply. Validate paths and symlinks, restrict writes to the game's admitted installation/bottle, and run via the runtime worker, never the UI thread.
+
+Add **community- and manifest-sourced fix metadata** as a *separate* discovery layer with source attribution, integrity checks, requirements and compatibility status. No automatic arbitrary scripts, unverified binary replacements, or assumptions about PS5 support. Only offer an Apply action for verified reversible and authorized fixes. Draw on Unchained's `IniFileFix`/`PrefixFileFix` patterns and SLSDeck's backup/fix-log/unfix lifecycle. Preserve manual lua.tools/Hubcap keys; PS5 browser authentication remains an optional later feature.
