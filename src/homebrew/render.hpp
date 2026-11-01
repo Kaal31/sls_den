@@ -45,6 +45,7 @@ class Render final
     [[nodiscard]] RenderStats diagnostics() const noexcept;
     // Returns the topmost control action from the last rendered frame.
     [[nodiscard]] std::optional<std::string> hit_test(float x, float y) const;
+    [[nodiscard]] std::optional<std::string> hover_test(float x, float y) const;
 
   private:
     class Impl;
