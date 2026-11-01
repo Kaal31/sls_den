@@ -4855,6 +4855,9 @@ void Simulation::rebuild_view() {
             auto& added=row("added-game-"+std::to_string(app_id),RowKind::Action,name,"added-game-info");
             added.subtitle="Steam App ID "+std::to_string(app_id)+" · Registered only · Not installed";
             if(state_.badge_enabled[1])added.badge="ADDED";
+            auto& remove=row("remove-added-"+std::to_string(app_id),RowKind::Action,
+                "Remove "+name+" from Lua Den","added-game-remove");
+            remove.subtitle="Unregister only · Does not delete any installed files";
         }
         // Discovery stays reachable even if the user has no owned games yet.
         if (state_.library.query.empty()) {
@@ -6752,15 +6755,17 @@ void Simulation::activate() {
         }
     }
     else if(action_name=="added-game-info" || action_name=="added-game-remove") {
-        const std::string prefix="added-game-";
+        const bool remove=action_name=="added-game-remove";
+        const std::string prefix=remove?"remove-added-":"added-game-";
         if(selected.key.rfind(prefix,0)==0) {
             const std::string value=selected.key.substr(prefix.size());
             const auto hit=std::find_if(manually_added_games_.begin(),manually_added_games_.end(),
                 [&](const auto& entry){return std::to_string(entry.first)==value;});
             if(hit!=manually_added_games_.end()) {
-                if(action_name=="added-game-remove") {
+                if(remove) {
                     manually_added_games_.erase(hit);
                     SaveAddedGames();
+                    push_notice({"added-game-removed","Manual Lua Den registration removed; Steam ownership was unchanged.","",false,0,true});
                 } else {
                     push_notice({"added-game-status",hit->second+" · Registered in Lua Den, not Steam-owned. Install and launch require verified content access.","",false,0,true});
                 }
