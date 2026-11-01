@@ -6,6 +6,7 @@
 #include "sls/source_resolver.h"
 #include <algorithm>
 #include <cstdint>
+#include <functional>
 #include <string>
 #include <vector>
 
@@ -46,5 +47,58 @@ inline Resolution DiscoverManifest(std::uint32_t app_id,
                                    const ProviderSelection& selection,
                                    const SourceFetch& fetch) {
     return ResolveManifest(app_id,ConfiguredSources(selection),fetch);
+}
+// An adapter receives the credential separately from the URL template. Callers must
+// never embed secrets into logs, diagnostic URLs or persisted source definitions.
+using CredentialLookup = std::function<bool(std::string_view key_id, std::string* value)>;
+using CredentialSourceFetch = std::function<bool(
+    const std::string& provider_id, const std::string& url_template,
+    std::uint32_t app_id, std::string_view credential,
+    std::string* payload, std::string* error)>;
+
+inline Resolution DiscoverManifestWithCredentials(
+    std::uint32_t app_id, const ProviderSelection& selection,
+    const CredentialLookup& lookup, const CredentialSourceFetch& fetch) {
+    Resolution result;
+    if(!app_id || !fetch)return result;
+    for(std::size_t i=0;i<kDefaultProviders.size();++i){
+        const auto& provider=kDefaultProviders[i];
+        const std::string provider_id(provider.id);
+        if(!selection.enabled(i)){
+            result.attempts.push_back({provider_id,"disabled"});
+            continue;
+        }
+        std::string secret;
+        if(!provider.required_key.empty() &&
+           (!lookup || !lookup(provider.required_key,&secret) || secret.empty())){
+            result.attempts.push_back({provider_id,"missing_key"});
+            continue;
+        }
+        std::string payload,error;
+        const bool fetched=fetch(provider_id,std::string(provider.url_template),
+                                 app_id,secret,&payload,&error);
+        // Do not retain credential contents in the resolver beyond this request.
+        std::fill(secret.begin(),secret.end(),'\\0');
+        secret.clear();
+        if(!fetched){
+            result.attempts.push_back({provider_id,"fetch_failed"});
+            continue;
+        }
+        if(payload.size()>1024*1024){
+            result.attempts.push_back({provider_id,"response_too_large"});
+            continue;
+        }
+        ManifestMetadata parsed;
+        if(!ParseManifestMetadata(app_id,payload,&parsed,&error) || parsed.depots.empty()){
+            result.attempts.push_back({provider_id,"invalid_manifest"});
+            continue;
+        }
+        result.attempts.push_back({provider_id,"success"});
+        result.ok=true;
+        result.source_id=provider_id;
+        result.metadata=std::move(parsed);
+        return result;
+    }
+    return result;
 }
 } // namespace playden::sls
