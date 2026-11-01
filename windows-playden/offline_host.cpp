@@ -266,6 +266,31 @@ int main(int argc,char** argv){
    }
    fs::remove(preference_test,preference_error);
    Log("Portable provider preference disk round-trip test passed");
+   const auto ui_preference_path=fs::temp_directory_path()/"sls-den-source-ui-restart-ci.ini";
+   fs::remove(ui_preference_path,preference_error);
+   {
+      playden::homebrew::Simulation writer(options.fixtures,{},playden::homebrew::ModelMode::Simulation);
+      writer.SetSlsSourcePreferencePath(ui_preference_path);
+      if(!writer.action("route:settings") ||
+         !writer.action("focus:settings-sls-default-0")) {
+         StartupError("Could not focus persisted source setting");return 8;
+      }
+      writer.action("cross");
+   }
+   {
+      playden::homebrew::Simulation reader(options.fixtures,{},playden::homebrew::ModelMode::Simulation);
+      reader.SetSlsSourcePreferencePath(ui_preference_path);
+      reader.action("route:settings");
+      const auto& rows=reader.view().rows;
+      const auto row=std::find_if(rows.begin(),rows.end(),
+         [](const auto& item){return item.key=="settings-sls-default-0";});
+      if(row==rows.end() || row->value!="Disabled") {
+         StartupError("Source preference did not survive a new UI process");return 8;
+      }
+   }
+   fs::remove(ui_preference_path,preference_error);
+   Log("Provider preference restart persistence test passed");
+
    if(!simulation.action("route:settings") ||
       !simulation.action("focus:settings-sls-probe")){
       StartupError("Offline source discovery control is missing");return 8;
