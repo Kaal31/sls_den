@@ -30,6 +30,12 @@ int main(){
  check(read(file)=="original=1\n","original restored byte-for-byte");
  check(ApplyConfigFix(root,"drive_c/game/new.ini","created=true\n")==FixResult::Applied,"create file");
  check(RestoreConfigFix(root,"drive_c/game/new.ini")==FixResult::Restored && !fs::exists(root/"drive_c"/"game"/"new.ini"),"remove created file");
+ check(ApplyConfigFix(root,"drive_c/game/settings.ini","patched=1\n")==FixResult::Applied,"apply conflict fixture");
+ {std::ofstream o(file,std::ios::binary|std::ios::trunc);o<<"user-change=1\n";}
+ check(RestoreConfigFix(root,"drive_c/game/settings.ini")==FixResult::Conflict,"preserve user modifications");
+ check(read(file)=="user-change=1\n","modified content retained");
+ {std::ofstream o(file,std::ios::binary|std::ios::trunc);o<<"patched=1\n";}
+ check(RestoreConfigFix(root,"drive_c/game/settings.ini")==FixResult::Restored,"restore after resolving conflict");
  check(ApplyConfigFix(root,"../escape.ini","bad")==FixResult::UnsafePath,"reject traversal");
  check(ApplyConfigFix(root,fs::absolute(root/"escape.ini"),"bad")==FixResult::UnsafePath,"reject absolute path");
  check(ApplyConfigFix(root,"drive_c/game/settings.ini",std::string(1024*1024+1,'x'))==FixResult::TooLarge,"reject oversized payload");
