@@ -1,4 +1,4 @@
-// SLS Den Windows: direct offline SDL/OpenGL host for Playden's real model/renderer.
+// Lua Den Windows: direct offline SDL/OpenGL host for Playden's real model/renderer.
 // This binary never authenticates with Steam, downloads, or installs software.
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "homebrew/render.hpp"
@@ -101,12 +101,12 @@ void Log(const std::string& message) {
 }
 void StartupError(const std::string& message) {
  Log("ERROR: "+message);
- std::fprintf(stderr,"SLS Den Windows: %s\\n",message.c_str());
+ std::fprintf(stderr,"Lua Den Windows: %s\\n",message.c_str());
 #ifdef _WIN32
  // Do not round-trip a Unicode log path through the Windows ANSI code page.
- std::wstring display_w=L"SLS Den startup failed. See the startup log:\n";
+ std::wstring display_w=L"Lua Den startup failed. See the startup log:\n";
  display_w+=startup_log.wstring();
- MessageBoxW(nullptr,display_w.c_str(),L"SLS Den - Startup error",MB_OK|MB_ICONERROR|MB_TOPMOST);
+ MessageBoxW(nullptr,display_w.c_str(),L"Lua Den - Startup error",MB_OK|MB_ICONERROR|MB_TOPMOST);
 #endif
 }
 int main(int argc,char** argv){
@@ -428,7 +428,7 @@ int main(int argc,char** argv){
  SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS,SDL_GL_CONTEXT_FORWARD_COMPATIBLE_FLAG);
  SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER,1);
  Log("Creating OpenGL 4.1 window and context");
- SDL_Window* window=SDL_CreateWindow("SLS Den - Playden Offline Preview",
+ SDL_Window* window=SDL_CreateWindow("Lua Den - Playden Offline Preview",
    SDL_WINDOWPOS_CENTERED,SDL_WINDOWPOS_CENTERED,options.width,options.height,
    SDL_WINDOW_OPENGL|SDL_WINDOW_RESIZABLE|(options.headless?SDL_WINDOW_HIDDEN:SDL_WINDOW_SHOWN));
  SDL_GLContext context=window?SDL_GL_CreateContext(window):nullptr;
