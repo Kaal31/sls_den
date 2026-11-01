@@ -55,4 +55,35 @@ inline bool RedeemLuatoolsCode(std::string_view code,const LuatoolsPost& post,
   std::fill(response.begin(),response.end(),char(0));
   return parsed;
 }
+
+inline constexpr std::string_view kLuatoolsRefreshUrl=
+    "https://db.lua.tools/auth/v1/token?grant_type=refresh_token";
+// Unlike bot codes, refresh tokens must be kept and rotated securely.
+// Preserve the previous refresh token only if the server omits a replacement.
+inline bool RefreshLuatoolsSession(const LuatoolsSession& prior,
+                                   const LuatoolsPost& post, LuatoolsSession* result) {
+  if(!result || !post || prior.refresh_token.empty() ||
+     prior.refresh_token.size()>8192)return false;
+  // Supabase refresh tokens are JSON strings; escape rather than interpolate raw input.
+  std::string escaped;
+  escaped.reserve(prior.refresh_token.size());
+  for(unsigned char ch:prior.refresh_token){
+    if(ch=='"' || ch=='\\')escaped.push_back('\\');
+    if(ch<32 || ch>126)return false;
+    escaped.push_back(static_cast<char>(ch));
+  }
+  std::string body=R"({"refresh_token":")"+escaped+R"("})";
+  std::string response;
+  const bool ok=post(kLuatoolsRefreshUrl,body,&response);
+  std::fill(body.begin(),body.end(),char(0));
+  std::fill(escaped.begin(),escaped.end(),char(0));
+  if(!ok){std::fill(response.begin(),response.end(),char(0));return false;}
+  LuatoolsSession renewed;
+  const bool parsed=ParseLuatoolsSession(response,&renewed);
+  std::fill(response.begin(),response.end(),char(0));
+  if(!parsed)return false;
+  if(renewed.refresh_token.empty())renewed.refresh_token=prior.refresh_token;
+  *result=std::move(renewed);
+  return true;
+}
 }
