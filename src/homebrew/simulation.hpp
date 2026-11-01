@@ -897,6 +897,7 @@ private:
     std::map<std::string, std::string> sls_preview_keys_;
     sls::ProviderSelection sls_sources_; // Shared provider toggle model, no network activity.
     std::filesystem::path sls_source_preference_path_;
+    std::string sls_fixture_discovery_status_ = "Not checked";
     ViewData view_;
     ViewData route_view_;
     std::string last_error_;
