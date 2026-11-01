@@ -22,7 +22,7 @@ int main(){
  fs::create_directories(root/"drive_c"/"game",ec);
  check(!ec,"fixture directory created");
  const auto file=root/"drive_c"/"game"/"settings.ini";
- {std::ofstream o(file);o<<"original=1\n";}
+ {std::ofstream o(file,std::ios::binary);o<<"original=1\n";}
  check(ApplyConfigFix(root,"drive_c/game/settings.ini","original=2\n")==FixResult::Applied,"apply replacement");
  check(read(file)=="original=2\n","replacement written");
  check(ApplyConfigFix(root,"drive_c/game/settings.ini","bad")==FixResult::AlreadyApplied,"no double backup");
