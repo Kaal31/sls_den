@@ -815,6 +815,7 @@ std::optional<std::string> Simulation::TakeSteamCatalogSearchRequest() {
 void Simulation::SetProtonDbRatings(std::map<std::uint32_t,std::string> ratings) {
     if(protondb_ratings_==ratings)return;
     protondb_ratings_=std::move(ratings);
+    state_.protondb_cover_ratings=protondb_ratings_;
     rebuild_view();
 }
 
@@ -837,6 +838,13 @@ void Simulation::FailSteamCatalogSearch(std::string query) {
 
 void Simulation::SetSlsSourcePreferencePath(std::filesystem::path path) {
     sls_source_preference_path_=std::move(path);
+    if(!sls_source_preference_path_.empty()) {
+        std::ifstream in(sls_source_preference_path_.parent_path()/"badge-options.txt");
+        std::string toggles;
+        if(in>>toggles && toggles.size()==5)
+            for(std::size_t i=0;i<5;++i)if(toggles[i]=='0'||toggles[i]=='1')
+                state_.badge_enabled[i]=toggles[i]=='1';
+    }
     if(!sls_source_preference_path_.empty()) {
         sls::ProviderSelection loaded;
         if(sls::LoadSelection(sls_source_preference_path_,&loaded)) sls_sources_=std::move(loaded);
@@ -4774,12 +4782,12 @@ void Simulation::rebuild_view() {
             // library. An ADDED Steam app must be recorded independently before
             // it can enter this catalogue, or it could be mislabelled as legitimate.
             // Non-Steam/imported games deliberately have no provenance badge.
-            item.badge = game->id.store == Store::kSteam ? (live() ? "LEGIT" : "STEAM") : "";
+            item.badge = game->id.store == Store::kSteam && state_.badge_enabled[0] ? (live() ? "LEGIT" : "STEAM") : "";
             if (state_.library.favorites.contains(game->id))
                 item.badge += item.badge.empty() ? "Favorite" : " · Favorite";
-            if(const auto app=game->id.steam_app();app && denuvo_known_.count(*app))
+            if(const auto app=game->id.steam_app();state_.badge_enabled[2] && app && denuvo_known_.count(*app))
                 item.badge += item.badge.empty() ? "DENUVO" : " · DENUVO";
-            if(const auto app=game->id.steam_app();app) {
+            if(const auto app=game->id.steam_app();state_.badge_enabled[4] && app) {
                 const auto rating=protondb_ratings_.find(*app);
                 if(rating!=protondb_ratings_.end()) {
                     std::string tier=rating->second;
@@ -5300,6 +5308,15 @@ void Simulation::rebuild_view() {
         if (state_.account().authentication != AuthState::SignedOut)
             add("settings-signout", RowKind::Action, "Sign out", "signout-confirm").dangerous = true;
         section = "Library";
+        {
+            const char* names[]={"LEGIT","ADDED","DENUVO","FIXED","ProtonDB"};
+            for(std::size_t i=0;i<5;++i) {
+                auto& option=add("settings-badge-"+std::to_string(i),RowKind::Toggle,
+                    std::string("Show ")+names[i]+" badges","badge-toggle-"+std::to_string(i));
+                option.value=state_.badge_enabled[i]?"On":"Off";
+                option.subtitle="Game covers and Library; ProtonDB ratings describe Linux Proton, not PS5";
+            }
+        }
         // Source names follow SLSDeck defaults/api.json; offline mode shows a local
         // catalogue only and never contacts these endpoints.
         {
@@ -6643,6 +6660,17 @@ void Simulation::activate() {
         if(catalog_display_page_>0) {
             --catalog_display_page_;
             state_.navigation.focus_key="steam-catalog-heading";
+        }
+    }
+    else if(action_name.rfind("badge-toggle-",0)==0) {
+        const std::string index=action_name.substr(13);
+        if(index.size()==1 && index[0]>='0' && index[0]<='4') {
+            const auto n=static_cast<std::size_t>(index[0]-'0');
+            state_.badge_enabled[n]=!state_.badge_enabled[n];
+            if(!sls_source_preference_path_.empty()) {
+                std::ofstream out(sls_source_preference_path_.parent_path()/"badge-options.txt",std::ios::trunc);
+                if(out)for(bool enabled:state_.badge_enabled)out<<(enabled?'1':'0');
+            }
         }
     }
     else if (action_name == "steam-catalog-info") {
