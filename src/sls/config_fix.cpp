@@ -1,6 +1,7 @@
 #include "sls/config_fix.h"
 #include <fstream>
 #include <iterator>
+#include <algorithm>
 #include <system_error>
 namespace playden::sls {
 namespace {
@@ -36,7 +37,8 @@ FixResult ApplyConfigFix(const fs::path& root,const fs::path& relative,std::stri
   if(ec)return FixResult::IoError;
   const auto backup=fs::path(target.string()+".lua-den-original");
   const auto created=fs::path(target.string()+".lua-den-created");
-  if(fs::exists(backup,ec)||fs::exists(created,ec))return FixResult::AlreadyApplied;
+  const auto applied=fs::path(target.string()+".lua-den-applied");
+  if(fs::exists(backup,ec)||fs::exists(created,ec)||fs::exists(applied,ec))return FixResult::AlreadyApplied;
   if(ec)return FixResult::IoError;
   const bool existed=fs::exists(target,ec);
   if(ec)return FixResult::IoError;
@@ -51,6 +53,14 @@ FixResult ApplyConfigFix(const fs::path& root,const fs::path& relative,std::stri
     if(!marker)return FixResult::IoError;
   }
   const auto temp=fs::path(target.string()+".lua-den-temp");
+  // Snapshot exactly what was applied, so Unfix refuses to overwrite changes.
+  // Refuse stale/foreign sidecars rather than truncating them.
+  if(fs::exists(temp,ec)||fs::exists(applied,ec))return FixResult::Conflict;
+  if(ec)return FixResult::IoError;
+  {std::ofstream snapshot(applied,std::ios::binary|std::ios::trunc);
+   if(!snapshot)return FixResult::IoError;
+   snapshot.write(text.data(),static_cast<std::streamsize>(text.size()));
+   snapshot.flush();if(!snapshot)return FixResult::IoError;}
   {std::ofstream out(temp,std::ios::binary|std::ios::trunc);
    if(!out)return FixResult::IoError;
    out.write(text.data(),static_cast<std::streamsize>(text.size()));
@@ -68,17 +78,32 @@ FixResult RestoreConfigFix(const fs::path& root,const fs::path& relative){
   if(!SafePath(root,relative,&target))return FixResult::UnsafePath;
   const auto backup=fs::path(target.string()+".lua-den-original");
   const auto created=fs::path(target.string()+".lua-den-created");
+  const auto applied=fs::path(target.string()+".lua-den-applied");
   std::error_code ec;
+  if(!fs::exists(backup,ec)&&!fs::exists(created,ec))return ec?FixResult::IoError:FixResult::NotApplied;
+  if(ec)return FixResult::IoError;
+  if(!fs::is_regular_file(applied,ec)||ec||fs::is_symlink(applied,ec)||ec)return FixResult::Conflict;
+  if(!fs::is_regular_file(target,ec)||ec||fs::is_symlink(target,ec)||ec)return FixResult::Conflict;
+  if(fs::file_size(target,ec)>kMaxBytes||ec||fs::file_size(applied,ec)>kMaxBytes||ec)return FixResult::Conflict;
+  std::ifstream actual(target,std::ios::binary),expected(applied,std::ios::binary);
+  if(!actual||!expected)return FixResult::IoError;
+  if(!std::equal(std::istreambuf_iterator<char>(actual),std::istreambuf_iterator<char>(),
+                 std::istreambuf_iterator<char>(expected),std::istreambuf_iterator<char>()))
+     return FixResult::Conflict;
   if(fs::exists(backup,ec)) {
     if(fs::is_symlink(backup,ec)||ec||!fs::is_regular_file(backup,ec)||ec)return FixResult::UnsafePath;
     fs::remove(target,ec);
     if(ec)return FixResult::IoError;
     fs::rename(backup,target,ec);
+    if(ec)return FixResult::IoError;
+    fs::remove(applied,ec);
     return ec?FixResult::IoError:FixResult::Restored;
   }
   if(fs::exists(created,ec)) {
     fs::remove(target,ec);if(ec)return FixResult::IoError;
     fs::remove(created,ec);
+    if(ec)return FixResult::IoError;
+    fs::remove(applied,ec);
     return ec?FixResult::IoError:FixResult::Restored;
   }
   return FixResult::NotApplied;
