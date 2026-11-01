@@ -812,6 +812,12 @@ std::optional<std::string> Simulation::TakeSteamCatalogSearchRequest() {
     return std::exchange(pending_catalog_search_,std::nullopt);
 }
 
+void Simulation::SetDenuvoKnown(std::set<std::uint32_t> appids) {
+    if(denuvo_known_==appids)return;
+    denuvo_known_=std::move(appids);
+    rebuild_view();
+}
+
 void Simulation::UpdateSteamCatalogResults(std::string query,sls::SteamCatalogPage page) {
     if(query!=catalog_search_query_)return; // An old worker must not replace a new query.
     catalog_search_results_=std::move(page);
@@ -4765,6 +4771,8 @@ void Simulation::rebuild_view() {
             item.badge = game->id.store == Store::kSteam ? (live() ? "LEGIT" : "STEAM") : "";
             if (state_.library.favorites.contains(game->id))
                 item.badge += item.badge.empty() ? "Favorite" : " · Favorite";
+            if(const auto app=game->id.steam_app();app && denuvo_known_.count(*app))
+                item.badge += item.badge.empty() ? "DENUVO" : " · DENUVO";
             if (game->art_failed) item.subtitle = "Artwork unavailable";
         }
         // Discovery stays reachable even if the user has no owned games yet.
