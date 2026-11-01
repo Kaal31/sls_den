@@ -59,8 +59,24 @@ void ProtonDbWorker::Persist(){
    for(const auto& [id,e]:entries)file<<id<<" "<<e.checked<<" "<<(e.tier.empty()?"none":e.tier)<<"\n";
    file.flush();if(!file)return;}
   // Existing cache is never destroyed on a failed refresh.
+  // On Windows rename() does not replace an existing destination. Keep the
+  // previous valid cache as a rollback copy while publishing the update.
+  auto backup=cache_;backup+=".bak";
+  std::error_code ignored;
+  std::filesystem::remove(backup,ignored);
+  const bool had_cache=std::filesystem::exists(cache_,ignored);
+  if(had_cache) {
+    std::filesystem::rename(cache_,backup,ec);
+    if(ec){std::filesystem::remove(temp,ignored);return;}
+  }
+  ec.clear();
   std::filesystem::rename(temp,cache_,ec);
-  if(ec)std::filesystem::remove(temp,ec);
+  if(ec && had_cache) {
+    std::error_code restore;
+    std::filesystem::rename(backup,cache_,restore);
+  }
+  if(!ec)std::filesystem::remove(backup,ignored);
+  else std::filesystem::remove(temp,ignored);
 }
 void ProtonDbWorker::Run(){
   steam::HttpClient client(ca_);
