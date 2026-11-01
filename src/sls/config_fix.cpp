@@ -73,6 +73,33 @@ FixResult ApplyConfigFix(const fs::path& root,const fs::path& relative,std::stri
   }
   return FixResult::Applied;
 }
+FixResult InspectConfigFix(const fs::path& root,const fs::path& relative) {
+  fs::path target;
+  if(!SafePath(root,relative,&target))return FixResult::UnsafePath;
+  const auto backup=fs::path(target.string()+".lua-den-original");
+  const auto created=fs::path(target.string()+".lua-den-created");
+  const auto applied=fs::path(target.string()+".lua-den-applied");
+  std::error_code ec;
+  const bool has_backup=fs::exists(backup,ec);
+  if(ec)return FixResult::IoError;
+  const bool has_created=fs::exists(created,ec);
+  if(ec)return FixResult::IoError;
+  if(!has_backup && !has_created)return FixResult::NotApplied;
+  if(!fs::is_regular_file(applied,ec)||ec||fs::is_symlink(applied,ec)||ec)
+     return FixResult::Conflict;
+  if(!fs::is_regular_file(target,ec)||ec||fs::is_symlink(target,ec)||ec)
+     return FixResult::Conflict;
+  const auto actual_size=fs::file_size(target,ec);
+  if(ec)return FixResult::IoError;
+  const auto expected_size=fs::file_size(applied,ec);
+  if(ec)return FixResult::IoError;
+  if(actual_size>kMaxBytes||expected_size>kMaxBytes)return FixResult::Conflict;
+  std::ifstream actual(target,std::ios::binary),expected(applied,std::ios::binary);
+  if(!actual||!expected)return FixResult::IoError;
+  return std::equal(std::istreambuf_iterator<char>(actual),std::istreambuf_iterator<char>(),
+                    std::istreambuf_iterator<char>(expected),std::istreambuf_iterator<char>())
+         ? FixResult::Applied : FixResult::Conflict;
+}
 FixResult RestoreConfigFix(const fs::path& root,const fs::path& relative){
   fs::path target;
   if(!SafePath(root,relative,&target))return FixResult::UnsafePath;
