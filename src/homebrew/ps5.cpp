@@ -6,6 +6,7 @@
 #include "homebrew/simulation.hpp"
 #include "sls/steam_catalog_worker.h"
 #include "sls/denuvo_worker.h"
+#include "sls/protondb_worker.h"
 #include "homebrew/store_art.hpp"
 #include "homebrew/controller.hpp"
 #include "steam/install_volumes.h"
@@ -397,6 +398,7 @@ int main() {
         // runtime admits the kit: an update that did not take puts the previous kit back.
         playden::sls::SteamCatalogWorker catalog_worker(paths.trust_store);
         playden::sls::DenuvoWorker denuvo_worker(paths.trust_store,std::filesystem::path(user_root)/"sls"/"denuvo_cache.txt");
+        playden::sls::ProtonDbWorker protondb_worker(paths.trust_store,std::filesystem::path(user_root)/"sls"/"protondb_cache.txt");
         std::uint64_t denuvo_next_poll=0;
         playden::steam::HttpClient update_http(paths.trust_store);
         playden::update::UpdateConfig update_config;
@@ -855,7 +857,9 @@ int main() {
                 for(const auto& game:simulation.state().games)
                     if(const auto id=game.id.steam_app())appids.push_back(*id);
                 denuvo_worker.Observe(appids);
+                protondb_worker.Observe(appids);
                 simulation.SetDenuvoKnown(denuvo_worker.Known());
+                simulation.SetProtonDbRatings(protondb_worker.Ratings());
                 denuvo_next_poll=now+2000000; // Monotonic microseconds: refresh UI at 2-second intervals.
             }
             downloads_slow_network.store(simulation.state().downloads_slow_network);
