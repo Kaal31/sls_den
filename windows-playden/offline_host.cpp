@@ -201,7 +201,13 @@ int main(int argc,char** argv){
  hui::gfx::set_glsl_prefix("#version 410 core\n");
  int exit_code=0;
  try{
-   Log("Constructing Playden renderer");
+   const auto* gl_vendor=reinterpret_cast<const char*>(glGetString(GL_VENDOR));
+ const auto* gl_renderer=reinterpret_cast<const char*>(glGetString(GL_RENDERER));
+ const auto* gl_version=reinterpret_cast<const char*>(glGetString(GL_VERSION));
+ Log(std::string("OpenGL vendor: ")+(gl_vendor?gl_vendor:"unknown"));
+ Log(std::string("OpenGL renderer: ")+(gl_renderer?gl_renderer:"unknown"));
+ Log(std::string("OpenGL version: ")+(gl_version?gl_version:"unknown"));
+ Log("Constructing Playden renderer");
    playden::homebrew::Render renderer(options.assets);
    Log("Renderer constructed, entering UI loop");
    bool running=true;
@@ -236,6 +242,7 @@ int main(int argc,char** argv){
    SDL_StopTextInput();
  }catch(const std::exception& error) {
    Log(std::string("ERROR: Renderer/UI exception: ")+error.what());
+   StartupError(std::string("Renderer initialization failed: ")+error.what());
    std::fprintf(stderr,"Playden offline UI: %s\n",error.what());exit_code=1;
  }catch(...) {
    Log("ERROR: Unknown renderer/UI exception");
