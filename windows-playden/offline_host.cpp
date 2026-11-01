@@ -199,6 +199,25 @@ int main(int argc,char** argv){
      StartupError("Home cover hover unexpectedly opened game details");return 8;
    }
    Log("Home and Library hover selection versus click activation tests passed");
+   // Offline Settings must expose source-specific, masked credential editors.
+   if(!simulation.action("route:settings") ||
+      !simulation.action("focus:settings-sls-key-moapikey")){
+      StartupError("Provider API-key control missing from Settings");return 8;
+   }
+   simulation.action("cross");
+   const std::string secret="preview_secret_test_only_93";
+   simulation.text(secret);
+   const auto editing=simulation.snapshot();
+   if(editing.find(R"("active":true)")==std::string::npos ||
+      editing.find(secret)!=std::string::npos){
+      StartupError("API-key editor did not mask user input");return 8;
+   }
+   simulation.action("done");
+   if(simulation.snapshot().find(secret)!=std::string::npos){
+      StartupError("Provider API key leaked into simulation snapshot");return 8;
+   }
+   Log("SLS source key masking and snapshot protection smoke test passed");
+
 
 
    Log("Five-route navigation and cross/circle action smoke test passed");
