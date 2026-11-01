@@ -105,4 +105,40 @@ setManifestid(480, "123456789")
     });
   assert(decoded.ok && decoded.source_id=="sushi" && decoded.metadata.depots.size()==1);
 
+
+  // Build a deterministic stored ZIP with matching local and central records.
+  auto put16=[](std::string& s,unsigned v){s.push_back(char(v));s.push_back(char(v>>8));};
+  auto put32=[&](std::string& s,uint32_t v){put16(s,v);put16(s,v>>16);};
+  auto make_zip=[&](std::string name,std::string body,bool corrupt_crc=false) {
+    std::string z,central;
+    uint32_t crc=zip_detail::crc32(body);
+    put32(z,0x04034b50);put16(z,20);put16(z,0);put16(z,0);
+    put16(z,0);put16(z,0);put32(z,corrupt_crc?crc+1:crc);
+    put32(z,body.size());put32(z,body.size());put16(z,name.size());
+    put16(z,0);z+=name;z+=body;
+    put32(central,0x02014b50);put16(central,20);put16(central,20);
+    put16(central,0);put16(central,0);put16(central,0);put16(central,0);
+    put32(central,corrupt_crc?crc+1:crc);put32(central,body.size());
+    put32(central,body.size());put16(central,name.size());
+    put16(central,0);put16(central,0);put16(central,0);
+    put16(central,0);put32(central,0);put32(central,0);central+=name;
+    uint32_t offset=z.size();z+=central;
+    put32(z,0x06054b50);put16(z,0);put16(z,0);put16(z,1);
+    put16(z,1);put32(z,central.size());put32(z,offset);put16(z,0);
+    return z;
+  };
+  const std::string lua="addappid(480)\\nsetManifestid(480, \\"123456789\\")\\n";
+  std::string extracted,why;
+  auto valid_zip=make_zip("480.lua",lua);
+  assert(DecodeStoredZipManifest(valid_zip,480,&extracted,&why) && extracted==lua);
+  auto zipped=DiscoverManifestWithCredentials(480,selection,
+    [](std::string_view,std::string* out){*out="fixture-key";return true;},
+    [&](const std::string&,const std::string&,std::uint32_t,std::string_view,
+        std::string* bytes,std::string*){*bytes=valid_zip;return true;});
+  assert(zipped.ok && zipped.metadata.depots.size()==1);
+  assert(!DecodeStoredZipManifest(make_zip("../480.lua",lua),480,&extracted,&why));
+  assert(!DecodeStoredZipManifest(make_zip("480.lua",lua,true),480,&extracted,&why));
+  assert(!DecodeStoredZipManifest(make_zip("481.lua",lua),480,&extracted,&why));
+  assert(!DecodeStoredZipManifest(valid_zip.substr(0,valid_zip.size()-3),480,&extracted,&why));
+
 }
