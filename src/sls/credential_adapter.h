@@ -28,6 +28,22 @@ inline bool HasStoredKey(const std::string& id) {
     if(credential) CredFree(credential);
     return present;
 }
+inline bool ReadStoredKey(const std::string& id,std::string* value) {
+    if(!value || !ValidKeyId(id)) return false;
+    value->clear();
+    PCREDENTIALW credential=nullptr;
+    const auto target=CredentialTarget(id);
+    if(!CredReadW(target.c_str(),CRED_TYPE_GENERIC,0,&credential)) return false;
+    bool ok=false;
+    if(credential && credential->CredentialBlob &&
+       credential->CredentialBlobSize>0 && credential->CredentialBlobSize<=2048) {
+        const auto* bytes=reinterpret_cast<const char*>(credential->CredentialBlob);
+        value->assign(bytes,bytes+credential->CredentialBlobSize);
+        ok=true;
+    }
+    if(credential) CredFree(credential);
+    return ok;
+}
 inline bool StoreKey(const std::string& id,const std::string& value) {
     if(!ValidKeyId(id)||value.size()>2048) return false;
     const auto target=CredentialTarget(id);
@@ -43,6 +59,7 @@ inline bool StoreKey(const std::string& id,const std::string& value) {
 }
 #else
 inline bool HasStoredKey(const std::string&) {return false;}
+inline bool ReadStoredKey(const std::string&,std::string* value) {if(value)value->clear();return false;}
 inline bool StoreKey(const std::string&,const std::string&) {return false;}
 #endif
 } // namespace playden::sls
