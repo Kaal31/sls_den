@@ -287,10 +287,24 @@ int main(int argc,char** argv){
        else if(e.type==SDL_KEYDOWN && !e.key.repeat){
          if(const auto* action=LogicalKey(e.key.keysym.sym))simulation.action(action);
        }else if(e.type==SDL_MOUSEWHEEL){
-         // Wheel navigation follows the currently focused list, like D-pad Up/Down.
-         const int steps=std::min(6,std::abs(e.wheel.y));
-         for(int n=0;n<steps;++n)
-           simulation.action(e.wheel.y>0?"up":"down");
+         // Cover shelves are horizontal; vertical wheel remains vertical on other screens.
+         // Shift+wheel always moves horizontally. Native horizontal wheel/trackpad
+         // deltas also move between covers, including when the wheel is diagonal.
+         const auto& state=simulation.state();
+         const bool on_home=state.navigation.route==playden::homebrew::Route::Home &&
+                            state.navigation.modals.empty();
+         const bool horizontal=(SDL_GetModState() & KMOD_SHIFT)!=0;
+         const int dx=e.wheel.direction==SDL_MOUSEWHEEL_FLIPPED?-e.wheel.x:e.wheel.x;
+         const int dy=e.wheel.direction==SDL_MOUSEWHEEL_FLIPPED?-e.wheel.y:e.wheel.y;
+         auto wheel_actions=[&](int delta,const char* positive,const char* negative){
+           for(int n=0;n<std::min(6,std::abs(delta));++n)
+             simulation.action(delta>0?positive:negative);
+         };
+         if(dx!=0)wheel_actions(dx,"right","left");
+         if(dy!=0) {
+           if(horizontal || on_home)wheel_actions(dy,"left","right");
+           else wheel_actions(dy,"up","down");
+         }
        }else if(e.type==SDL_MOUSEBUTTONDOWN && e.button.button==SDL_BUTTON_LEFT){
          int window_w=0,window_h=0;
          SDL_GetWindowSize(window,&window_w,&window_h);
