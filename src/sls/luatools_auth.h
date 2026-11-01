@@ -44,13 +44,13 @@ inline bool RedeemLuatoolsCode(std::string_view code,const LuatoolsPost& post,
                                 LuatoolsSession* output) {
   if(!ValidBotCode(code) || !post || !output)return false;
   // String content is alphabetic/numeric/hyphen only, hence JSON-safe.
-  std::string body="{\\"code\\":\\""+std::string(code)+"\\",\\"bot_code\\":\\""+std::string(code)+"\\"}";
+  std::string body=R"({"code":")"+std::string(code)+R"(","bot_code":")"+std::string(code)+R"("})";
   std::string response;
   const bool ok=post(kLuatoolsRedeemUrl,body,&response);
-  std::fill(body.begin(),body.end(),'\\0');
+  std::fill(body.begin(),body.end(),char(0));
   if(!ok)return false;
   const bool parsed=ParseLuatoolsSession(response,output);
-  std::fill(response.begin(),response.end(),'\\0');
+  std::fill(response.begin(),response.end(),char(0));
   return parsed;
 }
 }
