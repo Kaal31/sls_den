@@ -31,11 +31,10 @@ LuatoolsPost MakeAuthenticatedPost(steam::HttpClient& http,const std::atomic<boo
       return true;
     };
 }
-}
 bool RedeemLuatoolsViaHttp(steam::HttpClient& http,const std::atomic<bool>& cancel,
                             std::string_view bot_code,LuatoolsSession* session) {
   if(cancel.load() || !session)return false;
-  return RedeemLuatoolsCode(bot_code,MakeAuthenticatedPost(http,cancel),session);;
+  return RedeemLuatoolsCode(bot_code,MakeAuthenticatedPost(http,cancel),session);
 }
 bool RefreshLuatoolsViaHttp(steam::HttpClient& http,const std::atomic<bool>& cancel,
                            const LuatoolsSession& prior,LuatoolsSession* renewed) {
