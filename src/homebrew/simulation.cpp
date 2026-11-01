@@ -4804,8 +4804,16 @@ void Simulation::rebuild_view() {
     } else if (state_.navigation.route == Route::Library) {
         view_.title = "Library";
         const auto games = visible_games();
-        view_.total_count = games.size();
-        view_.subtitle = std::to_string(games.size()) + " games";
+        // Count independently registered Steam Store titles in the same unified
+        // library, but never interpret them as Steam-owned or installed.
+        std::size_t added_count=0;
+        for(const auto& [appid,name]:manually_added_games_)
+            if(!find_game(state_,GameId::Steam(appid)) &&
+               (state_.library.query.empty() ||
+                FoldLibraryText(name).find(FoldLibraryText(state_.library.query))!=std::string::npos))
+                ++added_count;
+        view_.total_count = games.size()+added_count;
+        view_.subtitle = std::to_string(view_.total_count) + " games";
         if (state_.library_loading) view_.subtitle += live() ? " · Refreshing library…" : " · Refreshing fixture library…";
         else if (live() && state_.library_offline) view_.subtitle += " · Cached library";
         if (live() && !state_.account().error.empty()) view_.subtitle += " · " + state_.account().error;
@@ -4855,6 +4863,9 @@ void Simulation::rebuild_view() {
             auto& added=row("added-game-"+std::to_string(app_id),RowKind::Action,name,"added-game-info");
             added.subtitle="Steam App ID "+std::to_string(app_id)+" · Registered only · Not installed";
             if(state_.badge_enabled[1])added.badge="ADDED";
+            auto& status=row("added-status-"+std::to_string(app_id),RowKind::Action,
+                "Preparation and fixes · "+name,"added-game-status");
+            status.subtitle="No authorized installation associated with this registration · Apply Fix unavailable";
             auto& remove=row("remove-added-"+std::to_string(app_id),RowKind::Action,
                 "Remove "+name+" from Lua Den","added-game-remove");
             remove.subtitle="Unregister only · Does not delete any installed files";
@@ -6753,6 +6764,12 @@ void Simulation::activate() {
                 if(out)for(bool enabled:state_.badge_enabled)out<<(enabled?'1':'0');
             }
         }
+    }
+    else if(action_name=="added-game-status") {
+        if(selected.key.rfind("added-status-",0)==0)
+            push_notice({"registration-not-prepared",
+                "This is a catalog registration, not an installed game. No fixes are available until game files and a verified installation path are present.",
+                "",false,0,true});
     }
     else if(action_name=="added-game-info" || action_name=="added-game-remove") {
         const bool remove=action_name=="added-game-remove";
