@@ -10,7 +10,6 @@
 #include "sls/provider_preferences.h"
 #include "sls/provider_discovery.h"
 #include "sls/credential_adapter.h"
-#include "sls/luatools_auth.h"
 #include <charconv>
 #include "runtime/game_probe.h"
 
@@ -5242,12 +5241,6 @@ void Simulation::rebuild_view() {
                 entry.subtitle=diagnostics[i].status+" · "+std::string(sls::kDefaultProviders[i].url_template);
 
             }
-            {
-                auto& row=add("settings-luatools-bot-code",RowKind::Action,
-                              "lua.tools · Enter Discord bot code","luatools-bot-code-edit");
-                row.value="Sign in";
-                row.subtitle="One-time code from the lua.tools Discord bot; not saved as an API key";
-            }
             for(const auto& field:sls::kKeyDefinitions){
                 auto& row=add("settings-sls-key-"+std::string(field.id),RowKind::Action,
                               std::string(field.label),"sls-key-edit-"+std::string(field.id));
@@ -5821,25 +5814,9 @@ void Simulation::submit_fixture_sign_in() {
 }
 
 void Simulation::commit_editor() {
-    if(state_.editor.purpose=="lua.tools bot code"){
-        const std::string code=trimmed(state_.editor.value);
-        if(!sls::ValidBotCode(code)) {
-            push_notice({"luatools-invalid-code","Enter a valid lua.tools Discord bot code.","",true,0,true});
-            return;
-        }
-        if(pending_luatools_bot_code_)steam::ZeroizeSecret(*pending_luatools_bot_code_);
-        pending_luatools_bot_code_=code;
-        steam::ZeroizeSecret(state_.editor.value);
-        steam::ZeroizeSecret(state_.editor.original);
-        state_.editor.active=false;
-        state_.editor.secret=false;
-        state_.navigation.focus_key="settings-luatools-bot-code";
-        push_notice({"luatools-code-pending","lua.tools code handed to the authentication host; no session is confirmed yet.","",false,0,true});
-        return;
-    }
     if(state_.editor.purpose.rfind("SLS key: ",0)==0){
         const std::string id=state_.editor.purpose.substr(9);
-        if(id=="moapikey" || id=="ryuu" || id=="steamweb"){
+        if(id=="moapikey" || id=="ryuu" || id=="steamweb" || id=="luatools"){
             const bool saved=sls::StoreKey(id,state_.editor.value);
             if(!saved) push_notice({"sls-key-store-failed","Could not save API key in Windows Credential Manager.","",true,0,true});
             auto& existing=sls_preview_keys_[id];
@@ -6588,8 +6565,6 @@ void Simulation::activate() {
             if(!sls_source_preference_path_.empty())
                 sls::SaveSelection(sls_source_preference_path_,sls_sources_);
         }
-    } else if(action_name=="luatools-bot-code-edit") {
-        start_editor("lua.tools bot code","",true);
     } else if(action_name.rfind("sls-key-edit-",0)==0) {
         const std::string id=action_name.substr(13);
         if(id=="moapikey" || id=="ryuu" || id=="steamweb")
