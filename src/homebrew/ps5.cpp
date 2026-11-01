@@ -5,6 +5,7 @@
 #include "homebrew/artwork_backend.hpp"
 #include "homebrew/simulation.hpp"
 #include "sls/steam_catalog_worker.h"
+#include "sls/denuvo_worker.h"
 #include "homebrew/store_art.hpp"
 #include "homebrew/controller.hpp"
 #include "steam/install_volumes.h"
@@ -395,6 +396,8 @@ int main() {
         // request, and swaps the app (and kit) when Playden quits for it. Start() runs before the
         // runtime admits the kit: an update that did not take puts the previous kit back.
         playden::sls::SteamCatalogWorker catalog_worker(paths.trust_store);
+        playden::sls::DenuvoWorker denuvo_worker(paths.trust_store,std::filesystem::path(user_root)/"sls"/"denuvo_cache.txt");
+        std::uint64_t denuvo_next_poll=0;
         playden::steam::HttpClient update_http(paths.trust_store);
         playden::update::UpdateConfig update_config;
         update_config.latest_release_url = "https://api.github.com/repos/leolobato/playden-ps5/releases/latest";
@@ -847,6 +850,14 @@ int main() {
                 else simulation.FailSteamCatalogSearch(std::move(result->query));
             }
             services.Tick();
+            if(now>=denuvo_next_poll) {
+                std::vector<std::uint32_t> appids;
+                for(const auto& game:simulation.state().games)
+                    if(const auto id=game.id.steam_app())appids.push_back(*id);
+                denuvo_worker.Observe(appids);
+                simulation.SetDenuvoKnown(denuvo_worker.Known());
+                denuvo_next_poll=now+2000000; // Monotonic microseconds: refresh UI at 2-second intervals.
+            }
             downloads_slow_network.store(simulation.state().downloads_slow_network);
 #endif
             const auto ticked = hui::sys::monotonic_us();
