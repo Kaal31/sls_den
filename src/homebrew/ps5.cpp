@@ -4,6 +4,7 @@
 #include "homebrew/render.hpp"
 #include "homebrew/artwork_backend.hpp"
 #include "homebrew/simulation.hpp"
+#include "sls/steam_catalog_worker.h"
 #include "homebrew/store_art.hpp"
 #include "homebrew/controller.hpp"
 #include "steam/install_volumes.h"
@@ -393,6 +394,7 @@ int main() {
         // Playden's own update: it looks for a newer release on GitHub at startup, stages it on
         // request, and swaps the app (and kit) when Playden quits for it. Start() runs before the
         // runtime admits the kit: an update that did not take puts the previous kit back.
+        playden::sls::SteamCatalogWorker catalog_worker(paths.trust_store);
         playden::steam::HttpClient update_http(paths.trust_store);
         playden::update::UpdateConfig update_config;
         update_config.latest_release_url = "https://api.github.com/repos/leolobato/playden-ps5/releases/latest";
@@ -838,6 +840,12 @@ int main() {
             simulation.controller_sample(playden::homebrew::diagnostic_sample(input));
             const auto dispatched = hui::sys::monotonic_us();
 #if !PLAYDEN_UI_SIMULATION
+            if(auto query=simulation.TakeSteamCatalogSearchRequest())
+                catalog_worker.Search(std::move(*query));
+            if(auto result=catalog_worker.Poll()) {
+                if(result->ok)simulation.UpdateSteamCatalogResults(std::move(result->query),std::move(result->page));
+                else simulation.FailSteamCatalogSearch(std::move(result->query));
+            }
             services.Tick();
             downloads_slow_network.store(simulation.state().downloads_slow_network);
 #endif
