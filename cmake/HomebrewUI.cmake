@@ -190,6 +190,7 @@ target_include_directories(playden_hui PUBLIC
 
 add_library(playden_homebrew_model STATIC
     "${CMAKE_SOURCE_DIR}/src/homebrew/simulation.cpp"
+    "${CMAKE_SOURCE_DIR}/src/sls/config_fix.cpp"
     "${CMAKE_SOURCE_DIR}/src/homebrew/storage_sim.cpp"
     "${CMAKE_SOURCE_DIR}/src/homebrew/queue_layout.cpp"
     "${CMAKE_SOURCE_DIR}/src/homebrew/browse.cpp"
