@@ -58,8 +58,8 @@ const char* LogicalKey(SDL_Keycode key){
    case SDLK_DOWN:case SDLK_s:return "down";
    case SDLK_LEFT:case SDLK_a:return "left";
    case SDLK_RIGHT:case SDLK_d:return "right";
-   case SDLK_RETURN:case SDLK_KP_ENTER:case SDLK_SPACE:return "confirm";
-   case SDLK_ESCAPE:case SDLK_BACKSPACE:return "back";
+   case SDLK_RETURN:case SDLK_KP_ENTER:case SDLK_SPACE:return "cross";
+   case SDLK_ESCAPE:case SDLK_BACKSPACE:return "circle";
    case SDLK_TAB:return "options";
    default:return nullptr;
  }
@@ -212,6 +212,16 @@ int main(int argc,char** argv){
    Log("Renderer constructed, entering UI loop");
    bool running=true;
    bool first_frame=true;
+   SDL_GameController* controller=nullptr;
+   auto open_controller=[&](){
+     if(controller)return;
+     for(int i=0;i<SDL_NumJoysticks();++i)
+       if(SDL_IsGameController(i)){
+         controller=SDL_GameControllerOpen(i);
+         if(controller){Log("SDL gamepad connected");break;}
+       }
+   };
+   open_controller();
    SDL_StartTextInput();
    const auto start=std::chrono::steady_clock::now();
    auto prev=start;
@@ -221,6 +231,30 @@ int main(int argc,char** argv){
        if(e.type==SDL_QUIT)running=false;
        else if(e.type==SDL_KEYDOWN && !e.key.repeat){
          if(const auto* action=LogicalKey(e.key.keysym.sym))simulation.action(action);
+       }else if(e.type==SDL_CONTROLLERDEVICEADDED)open_controller();
+       else if(e.type==SDL_CONTROLLERDEVICEREMOVED){
+         if(controller && SDL_JoystickInstanceID(SDL_GameControllerGetJoystick(controller))==e.cdevice.which){
+           SDL_GameControllerClose(controller);controller=nullptr;
+           open_controller();
+         }
+       }else if(e.type==SDL_CONTROLLERBUTTONDOWN){
+         const auto button=static_cast<SDL_GameControllerButton>(e.cbutton.button);
+         const char* action=nullptr;
+         switch(button){
+           case SDL_CONTROLLER_BUTTON_A:action="cross";break;
+           case SDL_CONTROLLER_BUTTON_B:action="circle";break;
+           case SDL_CONTROLLER_BUTTON_X:action="square";break;
+           case SDL_CONTROLLER_BUTTON_Y:action="triangle";break;
+           case SDL_CONTROLLER_BUTTON_DPAD_UP:action="up";break;
+           case SDL_CONTROLLER_BUTTON_DPAD_DOWN:action="down";break;
+           case SDL_CONTROLLER_BUTTON_DPAD_LEFT:action="left";break;
+           case SDL_CONTROLLER_BUTTON_DPAD_RIGHT:action="right";break;
+           case SDL_CONTROLLER_BUTTON_LEFTSHOULDER:action="l1";break;
+           case SDL_CONTROLLER_BUTTON_RIGHTSHOULDER:action="r1";break;
+           case SDL_CONTROLLER_BUTTON_START:action="options";break;
+           default:break;
+         }
+         if(action)simulation.action(action);
        }else if(e.type==SDL_TEXTINPUT)simulation.text(e.text.text);
      }
      const auto now=std::chrono::steady_clock::now();
@@ -239,6 +273,7 @@ int main(int argc,char** argv){
      }
      if(!options.headless)SDL_Delay(8);
    }
+   if(controller)SDL_GameControllerClose(controller);
    SDL_StopTextInput();
  }catch(const std::exception& error) {
    Log(std::string("ERROR: Renderer/UI exception: ")+error.what());
