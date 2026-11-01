@@ -357,6 +357,15 @@ int main(int argc,char** argv){
        if(!simulation.state().fixed_cover_ids.count(*app)){
          StartupError("FIXED badge state did not follow applied disk contents");return 8;
        }
+       // A fresh model instance must reconstruct FIXED from the on-disk
+       // snapshot, not from a session-only in-memory flag.
+       {
+         playden::homebrew::Simulation reopened(options.fixtures,{},playden::homebrew::ModelMode::Simulation);
+         reopened.SetVerifiedGameFixes({{*app,root}},{definition});
+         if(!reopened.state().fixed_cover_ids.count(*app)) {
+           StartupError("FIXED state did not survive a model restart");return 8;
+         }
+       }
        // A changed file must survive Unfix with the original backup intact.
        {std::ofstream edited(target,std::ios::binary|std::ios::trunc);edited<<"user-edit=1\n";}
        if(!simulation.action("focus:fix-undo-fixture-graphics")||!simulation.action("cross") ||
@@ -377,6 +386,13 @@ int main(int argc,char** argv){
        if(fs::exists(target.string()+".lua-den-original")||
           fs::exists(target.string()+".lua-den-applied")){
          StartupError("Unfix left stale backup markers");return 8;
+       }
+       {
+         playden::homebrew::Simulation reopened(options.fixtures,{},playden::homebrew::ModelMode::Simulation);
+         reopened.SetVerifiedGameFixes({{*app,root}},{definition});
+         if(reopened.state().fixed_cover_ids.count(*app)) {
+           StartupError("Restored fix was incorrectly detected after restart");return 8;
+         }
        }
        simulation.SetVerifiedGameFixes({},{});
        fs::remove_all(fix_root,e);
