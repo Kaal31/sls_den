@@ -231,6 +231,23 @@ int main(int argc,char** argv){
      StartupError("Re-enabled source row disappeared");return 8;
    }
    Log("SLSDeck provider enable/disable/enable test passed");
+   // Shared model must round-trip provider preferences on both Windows and PS5.
+   playden::sls::ProviderSelection sources;
+   if(!sources.toggle(0) || !sources.toggle(4) ||
+      sources.disabled_csv()!="morrenus,ryuu"){
+     StartupError("Portable source preferences did not serialize deterministically");return 8;
+   }
+   playden::sls::ProviderSelection restored;
+   if(!restored.load_disabled_csv(sources.disabled_csv()) ||
+      restored.enabled(0) || restored.enabled(4) || !restored.enabled(1)){
+     StartupError("Portable source preferences did not restore");return 8;
+   }
+   if(restored.load_disabled_csv("ryuu,unrecognized-source") ||
+      restored.enabled(0) || restored.enabled(4)){
+     StartupError("Invalid source preference input changed the saved selection");return 8;
+   }
+   Log("Cross-platform source preference serialization test passed");
+
 
 
 
