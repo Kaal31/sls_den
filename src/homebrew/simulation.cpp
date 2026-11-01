@@ -4754,7 +4754,14 @@ void Simulation::rebuild_view() {
             const auto* game = games[index];
             auto& item = row(game_key(game->id), RowKind::Game, game->title, "open-game");
             item.game_id = game->id;
-            if (state_.library.favorites.contains(game->id)) item.badge = "Favorite";
+            // SLSDeck-style provenance badge: show all library games together while
+            // distinguishing account Steam titles from imported local games.
+            // A future SLS-added Steam app must carry explicit registration provenance;
+            // never label an app LEGIT based on its numeric Steam app ID alone.
+            const char* provenance = game->id.store == Store::kLocal ? "ADDED" :
+                                     game->id.store == Store::kSteam ? "STEAM" : "LIBRARY";
+            item.badge = provenance;
+            if (state_.library.favorites.contains(game->id)) item.badge += " · Favorite";
             if (game->art_failed) item.subtitle = "Artwork unavailable";
         }
         // Discovery stays reachable even if the user has no owned games yet.
