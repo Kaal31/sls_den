@@ -808,6 +808,10 @@ Simulation::Simulation(std::filesystem::path fixture_directory, std::filesystem:
     rebuild_view();
 }
 
+std::optional<std::string> Simulation::TakeSteamCatalogSearchRequest() {
+    return std::exchange(pending_catalog_search_,std::nullopt);
+}
+
 void Simulation::SetSlsSourcePreferencePath(std::filesystem::path path) {
     sls_source_preference_path_=std::move(path);
     if(!sls_source_preference_path_.empty()) {
@@ -4742,6 +4746,12 @@ void Simulation::rebuild_view() {
             if (state_.library.favorites.contains(game->id)) item.badge = "Favorite";
             if (game->art_failed) item.subtitle = "Artwork unavailable";
         }
+        // Public catalog discovery is a separate action, never mixed into owned library games.
+        if (!state_.library.query.empty()) {
+            auto& discover = row("library-store-search",RowKind::Action,
+                                 "Search Steam Store for: "+state_.library.query,"steam-catalog-search");
+            discover.subtitle = catalog_search_status_.empty() ? "Public catalog · includes unowned titles" : catalog_search_status_;
+        }
         // An empty grid offers the way back to the games it hides; Connect a store is only for a missing catalog.
         if (view_.rows.empty()) {
             if (!state_.library.query.empty()) row("clear-search", RowKind::Action, "Clear search", "clear-search");
@@ -6530,6 +6540,15 @@ void Simulation::activate() {
     else if (action_name == "skip" || action_name == "library") { state_.navigation.route = action_name == "skip" ? Route::Home : Route::Library; state_.navigation.focus_key.clear(); }
     else if (action_name == "qr-cancel" || action_name == "editor-cancel" || action_name == "cancel") cancel();
     else if (action_name == "editor-done") commit_editor();
+    else if (action_name == "steam-catalog-search") {
+        const auto q=trimmed(state_.library.query);
+        if(q.size()<2 || q.size()>100) {
+            catalog_search_status_="Enter 2–100 characters to search the public store";
+        } else {
+            pending_catalog_search_=q;
+            catalog_search_status_="Search requested · awaiting network host";
+        }
+    }
     else if (action_name == "clear-search") { state_.library.query.clear(); reconcile_library_selection(state_); }
     else if (action_name == "library-show-all") { state_.library.scope = "all"; reconcile_library_selection(state_); save_profile(); }
     else if (action_name == "open-game") {
