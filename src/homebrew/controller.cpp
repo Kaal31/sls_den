@@ -1869,6 +1869,19 @@ void Controller::TickInstalls() {
   for (const auto& finished : snapshot.completed)
     completed.push_back({finished.id, finished.install_bytes, finished.volume_id, finished.finished_at});
   model_.UpdateInstalls(jobs, installed, completed);
+  // Reuse Playden's resolved, available install locations. A Steam Store AppID
+  // or locally-added catalogue record alone must never authorize filesystem fixes.
+  std::map<std::uint32_t, sls::VerifiedGameRoot> verified_roots;
+  for (const auto& entry : installed) {
+    const auto app = entry.game_id.steam_app();
+    const auto root = game_roots_.find(entry.game_id);
+    if (!app || !entry.available || root == game_roots_.end() || root->second.empty()) continue;
+    // Curation remains explicit: there are no built-in remote executable patches.
+    verified_roots[*app] = sls::VerifiedGameRoot{
+        *app, root->second, {}, true, entry.available, runtime_ != nullptr};
+  }
+  model_.SetVerifiedGameFixes(std::move(verified_roots), {});
+
 }
 void Controller::TickStoreDetails() {
   if (!store_details_) return;
