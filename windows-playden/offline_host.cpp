@@ -268,6 +268,7 @@ int main(int argc,char** argv){
    bool first_frame=true;
    SDL_GameController* controller=nullptr;
    int stick_x=0,stick_y=0;
+   std::string last_hover_action;
    auto open_controller=[&](){
      if(controller)return;
      for(int i=0;i<SDL_NumJoysticks();++i)
@@ -286,6 +287,20 @@ int main(int argc,char** argv){
        if(e.type==SDL_QUIT)running=false;
        else if(e.type==SDL_KEYDOWN && !e.key.repeat){
          if(const auto* action=LogicalKey(e.key.keysym.sym))simulation.action(action);
+       }else if(e.type==SDL_MOUSEMOTION){
+         int window_w=0,window_h=0;
+         SDL_GetWindowSize(window,&window_w,&window_h);
+         if(window_w>0 && window_h>0){
+           const float px=static_cast<float>(e.motion.x)*1920.0f/window_w;
+           const float py=static_cast<float>(e.motion.y)*1080.0f/window_h;
+           if(const auto action=renderer.hover_test(px,py)){
+             // A hover moves selection; it never activates a game or clicks a control.
+             if(*action!=last_hover_action){
+               simulation.action(*action);
+               last_hover_action=*action;
+             }
+           }else last_hover_action.clear();
+         }
        }else if(e.type==SDL_MOUSEWHEEL){
          // Cover shelves are horizontal; vertical wheel remains vertical on other screens.
          // Shift+wheel always moves horizontally. Native horizontal wheel/trackpad
