@@ -274,16 +274,10 @@ int main(int argc,char** argv){
          if(window_w>0 && window_h>0){
            const float px=static_cast<float>(e.button.x)*1920.0f/window_w;
            const float py=static_cast<float>(e.button.y)*1080.0f/window_h;
-           // Header shortcuts: only handle known fixed top-level regions.
-           // Clicks elsewhere are intentionally not presented as accurate hit-testing.
-           if(py>=50.0f && py<=115.0f){
-             const char* route=nullptr;
-             if(px>=95 && px<250)route="route:home";
-             else if(px>=250 && px<425)route="route:library";
-             else if(px>=425 && px<605)route="route:downloads";
-             else if(px>=605 && px<785)route="route:saves";
-             else if(px>=785 && px<990)route="route:settings";
-             if(route)simulation.action(route);
+           // Use hitboxes from the last rendered frame; no hardcoded mouse regions.
+           if(auto action=renderer.hit_test(px,py)) {
+             const bool changed=simulation.action(*action);
+             if(!changed) Log("Mouse click ignored: "+*action);
            }
          }
        }else if(e.type==SDL_CONTROLLERDEVICEADDED)open_controller();
