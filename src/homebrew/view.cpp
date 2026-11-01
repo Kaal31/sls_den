@@ -454,6 +454,12 @@ class Render::Impl
     void add_hit(const gfx::Rect& rect, std::string action, bool modal=false) {
         if(rect.w>0 && rect.h>0 && !action.empty()) hits_.push_back({rect,std::move(action),modal});
     }
+    std::optional<std::string> hover_test(float x,float y) const {
+        const auto action=hit_test(x,y);
+        if(!action) return std::nullopt;
+        if(action->rfind("details:",0)==0) return "select:"+action->substr(8);
+        return std::nullopt;
+    }
     std::optional<std::string> hit_test(float x,float y) const {
         const bool blocked = current_state_ && !current_state_->navigation.modals.empty();
         for(auto it=hits_.rbegin();it!=hits_.rend();++it) {
@@ -4294,6 +4300,10 @@ bool Render::capture_png(const std::filesystem::path &path, int width, int heigh
 
 std::optional<std::string> Render::hit_test(float x,float y) const {
     return impl_->hit_test(x,y);
+}
+
+std::optional<std::string> Render::hover_test(float x,float y) const {
+    return impl_->hover_test(x,y);
 }
 
 RenderStats Render::diagnostics() const noexcept
