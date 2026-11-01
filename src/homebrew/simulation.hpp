@@ -585,6 +585,7 @@ struct State {
     // Presentation-only badge settings and cached ratings; never establish ownership.
     std::array<bool,5> badge_enabled{{true,true,true,true,true}}; // LEGIT, ADDED, DENUVO, FIXED, ProtonDB
     std::map<std::uint32_t,std::string> protondb_cover_ratings;
+    std::set<std::uint32_t> denuvo_cover_ids;
     UserLibrary library;
     std::vector<Installation> installations;
     std::vector<Job> jobs;
