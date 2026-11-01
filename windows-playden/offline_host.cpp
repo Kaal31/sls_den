@@ -227,6 +227,34 @@ int main(int argc,char** argv){
       StartupError("Provider API key leaked into simulation snapshot");return 8;
    }
    Log("SLS source key masking and snapshot protection smoke test passed");
+
+   // Public Steam catalog must never become an owned/installed Game row.
+   simulation.action("route:library");
+   simulation.action("search");
+   simulation.text("Portal");
+   simulation.action("done");
+   if(!simulation.action("focus:library-store-search")) {
+     StartupError("Steam Store discovery action is missing from Library");return 8;
+   }
+   simulation.action("cross");
+   auto catalog_request=simulation.TakeSteamCatalogSearchRequest();
+   if(!catalog_request || *catalog_request!="Portal" || simulation.TakeSteamCatalogSearchRequest()) {
+     StartupError("Steam catalog search request did not hand off once");return 8;
+   }
+   playden::sls::SteamCatalogPage catalog_page;
+   catalog_page.total=1;
+   catalog_page.titles.push_back({620,"Portal 2 (public result)"});
+   simulation.UpdateSteamCatalogResults(*catalog_request,std::move(catalog_page));
+   const auto catalog_view=simulation.snapshot();
+   if(catalog_view.find("Portal 2 (public result)")==std::string::npos) {
+     StartupError("Public Steam catalog result was not shown");return 8;
+   }
+   simulation.action("route:home");
+   simulation.action("route:library");
+   simulation.action("focus:clear-search");
+   simulation.action("cross");
+   Log("Public Steam Store discovery request and isolated result smoke test passed");
+
    // Both Hubcap and lua.tools credentials must use masked manual entry.
    if(!simulation.action("route:settings") ||
       !simulation.action("focus:settings-sls-key-luatools")){
