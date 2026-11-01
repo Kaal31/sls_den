@@ -48,7 +48,8 @@ FixResult ApplyConfigFix(const fs::path& root,const fs::path& relative,std::stri
     if(ec)return FixResult::IoError;
   } else {
     fs::create_directories(target.parent_path(),ec);
-    if(ec||!SafePath(root,relative,&target))return FixResult::UnsafePath;
+    if(ec)return FixResult::IoError;
+    if(!SafePath(root,relative,&target))return FixResult::UnsafePath;
     std::ofstream marker(created,std::ios::binary);
     if(!marker)return FixResult::IoError;
   }
@@ -68,8 +69,22 @@ FixResult ApplyConfigFix(const fs::path& root,const fs::path& relative,std::stri
   // Existing file remains protected in the backup until restore.
   fs::rename(temp,target,ec);
   if(ec) {
-    fs::remove(target,ec);ec.clear();fs::rename(temp,target,ec);
-    if(ec)return FixResult::IoError;
+    // Never remove an existing user file before a replacement is safely staged.
+    const auto staging=fs::path(target.string()+".lua-den-replace-staging");
+    std::error_code staging_error;
+    if(!fs::exists(target,staging_error) || staging_error ||
+       fs::exists(staging,staging_error) || staging_error)return FixResult::IoError;
+    fs::rename(target,staging,staging_error);
+    if(staging_error)return FixResult::IoError;
+    ec.clear();
+    fs::rename(temp,target,ec);
+    if(ec) {
+      std::error_code recovery;
+      fs::rename(staging,target,recovery);
+      return FixResult::IoError;
+    }
+    fs::remove(staging,staging_error);
+    if(staging_error)return FixResult::IoError;
   }
   return FixResult::Applied;
 }
