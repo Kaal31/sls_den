@@ -31,6 +31,7 @@ struct Options {
  std::string scenario;
  bool self_test=false;
  bool validate_assets=false;
+ bool navigation_test=false;
  bool headless=false;
  int width=1280,height=720;
 };
@@ -39,6 +40,7 @@ bool Parse(int argc,char** argv,Options* o) {
    std::string_view option=argv[i];
    if(option=="--self-test"){o->self_test=true;continue;}
    if(option=="--validate-assets"){o->validate_assets=true;continue;}
+   if(option=="--navigation-self-test"){o->navigation_test=true;continue;}
    if(option=="--headless"){o->headless=true;continue;}
    if(i+1>=argc)return false;
    std::string value=argv[++i];
@@ -139,6 +141,22 @@ int main(int argc,char** argv){
  if(!options.scenario.empty()&&!simulation.scenario(options.scenario)){
    std::fprintf(stderr,"Unknown scenario: %s\n",options.scenario.c_str());
    return 2;
+ }
+ if(options.navigation_test){
+   // Test state transitions without requiring a GPU or a human to launch the app.
+   const std::array<const char*,5> routes={"home","library","downloads","saves","settings"};
+   for(const char* route:routes){
+     if(!simulation.action(std::string("route:")+route)){
+       StartupError(std::string("Navigation test could not switch to ")+route);return 8;
+     }
+     if(simulation.snapshot().find(std::string("\\\"route\\\":\\\"")+route+"\\\"")==std::string::npos){
+       StartupError(std::string("Navigation route mismatch: ")+route);return 8;
+     }
+     simulation.action("down");
+     simulation.action("cross");
+     simulation.action("circle");
+   }
+   Log("Five-route navigation and cross/circle action smoke test passed");
  }
  if(options.validate_assets){
    // Verify the actual renderer font files through native Unicode file handles.
