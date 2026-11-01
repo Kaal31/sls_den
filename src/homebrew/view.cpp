@@ -1608,6 +1608,7 @@ class Render::Impl
             const bool focused = route_focus_ && state.navigation.library_rail_focused &&
                                  index == state.navigation.selected_index;
             const gfx::Rect entry{96.0F, y, 300.0F, 60.0F};
+            add_hit(entry, "click:"+entries[static_cast<std::size_t>(index)].key);
             const float amount = control_focus(entries[static_cast<std::size_t>(index)].key, focused);
             focus_glow(scene_, entry, amount, true);
             scene_.rounded_rect(entry, 8.0F, kBackground);
