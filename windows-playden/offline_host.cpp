@@ -217,6 +217,21 @@ int main(int argc,char** argv){
       StartupError("Provider API key leaked into simulation snapshot");return 8;
    }
    Log("SLS source key masking and snapshot protection smoke test passed");
+   // Source rows must be focusable, selectable, and reversible without network I/O.
+   if(!simulation.action("route:settings") ||
+      !simulation.action("focus:settings-sls-default-0")){
+     StartupError("SLSDeck source row is missing from Settings");return 8;
+   }
+   simulation.action("cross");
+   if(!simulation.action("focus:settings-sls-default-0")){
+     StartupError("Disabled source row disappeared");return 8;
+   }
+   simulation.action("cross");
+   if(!simulation.action("focus:settings-sls-default-0")){
+     StartupError("Re-enabled source row disappeared");return 8;
+   }
+   Log("SLSDeck provider enable/disable/enable test passed");
+
 
 
 
