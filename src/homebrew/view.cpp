@@ -1825,6 +1825,31 @@ class Render::Impl
             scene_.pop_transform();
             return;
         }
+        // Compact ProtonDB cover icon; independent of focus and not an input target.
+        // ProtonDB describes Linux Proton reports, not a PS5 compatibility grade.
+        if(current_state_ && current_state_->badge_enabled[4]) {
+            const auto app=game.id.steam_app();
+            if(app) {
+                const auto rating=current_state_->protondb_cover_ratings.find(*app);
+                if(rating!=current_state_->protondb_cover_ratings.end()) {
+                    const std::string& tier=rating->second;
+                    const char* label=nullptr;
+                    gfx::Color ink=kSecondary;
+                    if(tier=="platinum"){label="P";ink=gfx::Color::rgb(0xB7D8E8);}
+                    else if(tier=="gold"){label="G";ink=gfx::Color::rgb(0xE8BD4D);}
+                    else if(tier=="silver"){label="S";ink=gfx::Color::rgb(0xC1C7D0);}
+                    else if(tier=="bronze"){label="B";ink=gfx::Color::rgb(0xC98C5C);}
+                    else if(tier=="borked"){label="X";ink=gfx::Color::rgb(0xE66565);}
+                    if(label) {
+                        const float x=rect.x+rect.w-43.0F;
+                        const float y=rect.y+(game.demo?50.0F:10.0F);
+                        scene_.rounded_rect({x,y,33.0F,30.0F},7.0F,kBackground.with_alpha(0.90F));
+                        scene_.bordered_rect({x,y,33.0F,30.0F},7.0F,kBackground.with_alpha(0.0F),1.0F,ink);
+                        ui::text(scene_,fonts_.semibold,label,x+16.5F,y+22.0F,19.0F,ink,gfx::Align::center);
+                    }
+                }
+            }
+        }
         const float demo = game.demo ? demo_badge(rect) : 0.0F;
         if (status.job != nullptr && !downloading)
             tile_badge(rect, JobStateText(*status.job),
