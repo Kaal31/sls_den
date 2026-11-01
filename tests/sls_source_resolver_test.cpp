@@ -88,7 +88,7 @@ setManifestid(480, "123456789")
   // ZIPs are rejected until a bounded, CRC-checking host decoder is supplied.
   auto zip_payload=[](const std::string&,const std::string&,std::uint32_t,
                       std::string_view,std::string* payload,std::string*) {
-    *payload=std::string("PK\\x03\\x04",4)+"fixture-zip";
+    *payload=std::string("PK\x03\x04",4)+"fixture-zip";
     return true;
   };
   auto blocked=DiscoverManifestWithCredentials(480,selection,
