@@ -74,7 +74,6 @@ const char* LogicalKey(SDL_Keycode key){
 }
 }
 fs::path LogPath() {
- automated_test_mode=options.self_test || options.navigation_test || options.headless;
 #ifdef _WIN32
  wchar_t executable[32768]{};
  if(GetModuleFileNameW(nullptr,executable,32768)>0) {
@@ -127,6 +126,7 @@ int main(int argc,char** argv){
    std::fprintf(stderr,"usage: playden-windows-offline [--scenario ID] [--self-test] [--capture PNG] [--snapshot JSON] [--headless]\n");
    return 2;
  }
+ automated_test_mode=options.self_test || options.navigation_test || options.headless;
 #ifdef _WIN32
  wchar_t executable[32768]{};
  if(GetModuleFileNameW(nullptr,executable,32768)>0){
