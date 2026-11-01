@@ -4756,6 +4756,11 @@ void Simulation::rebuild_view() {
             if (state_.library.favorites.contains(game->id)) item.badge = "Favorite";
             if (game->art_failed) item.subtitle = "Artwork unavailable";
         }
+        // Discovery stays reachable even if the user has no owned games yet.
+        if (state_.library.query.empty()) {
+            auto& discover=row("library-discover",RowKind::Action,"Discover Steam games","steam-catalog-open-search");
+            discover.subtitle="Search the public Steam Store · no ownership implied";
+        }
         // Public catalog discovery is a separate action, never mixed into owned library games.
         if (!state_.library.query.empty()) {
             auto& discover = row("library-store-search",RowKind::Action,
@@ -6557,6 +6562,9 @@ void Simulation::activate() {
     else if (action_name == "skip" || action_name == "library") { state_.navigation.route = action_name == "skip" ? Route::Home : Route::Library; state_.navigation.focus_key.clear(); }
     else if (action_name == "qr-cancel" || action_name == "editor-cancel" || action_name == "cancel") cancel();
     else if (action_name == "editor-done") commit_editor();
+    else if (action_name == "steam-catalog-open-search") {
+        start_editor("Search",state_.library.query);
+    }
     else if (action_name == "steam-catalog-search") {
         const auto q=trimmed(state_.library.query);
         if(q.size()<2 || q.size()>100) {
