@@ -52,6 +52,22 @@ int main(){
  check(read(file)=="original=3\n","replacement after restore");
  check(RestoreConfigFix(root,"drive_c/game/settings.ini")==FixResult::Restored,"restore repeated replacement");
  check(read(file)=="original=1\n","repeated replacement restored original");
+ // A stale transaction file must not lead to a new backup, marker, or
+ // destructive replacement. Recovery remains explicit until verified.
+ const auto blocked=root/"drive_c"/"game"/"blocked.ini";
+ {std::ofstream out(blocked,std::ios::binary);out<<"user-value=1\n";}
+ const auto stale=fs::path(blocked.string()+".lua-den-restore-staging");
+ {std::ofstream out(stale,std::ios::binary);out<<"recovery-bytes\n";}
+ check(ApplyConfigFix(root,"drive_c/game/blocked.ini","patched\n")==FixResult::Conflict,
+       "stale restore transaction blocks Apply");
+ check(read(blocked)=="user-value=1\n","stale restore leaves user file unchanged");
+ check(read(stale)=="recovery-bytes\n","stale transaction retained");
+ check(!fs::exists(blocked.string()+".lua-den-original"),"stale transaction cannot create backup");
+ fs::remove(stale,ec);
+ check(ApplyConfigFix(root,"drive_c/game/blocked.ini","patched\n")==FixResult::Applied,
+       "Apply works after stale transaction is resolved");
+ check(RestoreConfigFix(root,"drive_c/game/blocked.ini")==FixResult::Restored,
+       "recovered Apply can be undone");
  check(ApplyConfigFix(root,"../escape.ini","bad")==FixResult::UnsafePath,"reject traversal");
  check(ApplyConfigFix(root,fs::absolute(root/"escape.ini"),"bad")==FixResult::UnsafePath,"reject absolute path");
  check(ApplyConfigFix(root,"drive_c/game/settings.ini",std::string(1024*1024+1,'x'))==FixResult::TooLarge,"reject oversized payload");
