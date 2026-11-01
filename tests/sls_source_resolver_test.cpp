@@ -17,7 +17,7 @@ int main() {
       *payload = "invalid";
       return true;
     }
-    *payload = "addappid(100)\nsetManifestid(100, \"123456789\")\n";
+        *payload = R"(addappid(480)\nsetManifestid(480, "123456789")\n)";
     return true;
   };
   auto r = ResolveManifest(480, sources, fetch);
