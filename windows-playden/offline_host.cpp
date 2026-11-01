@@ -266,6 +266,24 @@ int main(int argc,char** argv){
    }
    fs::remove(preference_test,preference_error);
    Log("Portable provider preference disk round-trip test passed");
+   if(!simulation.action("route:settings") ||
+      !simulation.action("focus:settings-sls-probe")){
+      StartupError("Offline source discovery control is missing");return 8;
+   }
+   simulation.action("cross");
+   if(!simulation.action("focus:settings-sls-probe") ||
+      simulation.view().rows.empty()){
+      StartupError("Fixture manifest discovery did not return to Settings");return 8;
+   }
+   // The fixture-only resolver should select Sushi after Ryuu's synthetic miss.
+   const auto& discovery_view=simulation.view();
+   const auto probe=std::find_if(discovery_view.rows.begin(),discovery_view.rows.end(),
+      [](const auto& row){return row.key=="settings-sls-probe";});
+   if(probe==discovery_view.rows.end() || probe->value.find("sushi")==std::string::npos){
+      StartupError("Fixture manifest discovery did not validate provider fallback");return 8;
+   }
+   Log("Offline fixture-based source discovery test passed");
+
 
 
 
