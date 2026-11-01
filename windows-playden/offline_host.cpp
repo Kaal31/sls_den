@@ -278,6 +278,24 @@ int main(int argc,char** argv){
        StartupError("Manually added game failed to survive UI restart without becoming owned");return 8;
      }
    }
+   // Unregister must not modify real Steam entitlements and must survive restart.
+   {
+     playden::homebrew::Simulation remover(options.fixtures,{},playden::homebrew::ModelMode::Simulation);
+     remover.SetSlsSourcePreferencePath(added_test_dir/"sources.ini");
+     remover.action("route:library");
+     if(!remover.action("focus:remove-added-620")||!remover.action("cross")){
+       StartupError("Manual registration removal was not reachable");return 8;
+     }
+   }
+   {
+     playden::homebrew::Simulation reader(options.fixtures,{},playden::homebrew::ModelMode::Simulation);
+     reader.SetSlsSourcePreferencePath(added_test_dir/"sources.ini");
+     reader.action("route:library");
+     for(const auto& row:reader.view().rows)
+       if(row.key=="added-game-620"){
+         StartupError("Removed manual game registration survived restart");return 8;
+       }
+   }
    fs::remove_all(added_test_dir,added_error);
    Log("Manual game registration persistence and ownership isolation passed");
    simulation.action("route:home");
