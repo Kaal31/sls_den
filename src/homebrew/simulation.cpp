@@ -5220,7 +5220,7 @@ void Simulation::rebuild_view() {
                               "Check fixture manifests","sls-fixture-discovery");
             check.value=sls_fixture_discovery_status_;
             check.subtitle="Offline validation of source fallback and manifest metadata; no downloads";
-            auto& heading = add("settings-sls-sources", RowKind::Status, "SLS Den · Sources", "");
+            auto& heading = add("settings-sls-sources", RowKind::Status, "Lua Den · Sources", "");
             heading.subtitle = "SLSDeck source catalogue · offline preview, no network requests";
             std::vector<std::string> available_keys;
             for(const auto& field:sls::kKeyDefinitions)
@@ -5243,12 +5243,12 @@ void Simulation::rebuild_view() {
             }
         }
         if (live()) {
-            auto& source = add("settings-manifest-source", RowKind::Action, "SLS Den · Manifest source", "manifest-source-edit");
+            auto& source = add("settings-manifest-source", RowKind::Action, "Lua Den · Manifest source", "manifest-source-edit");
             source.value = state_.sls_source_url.empty() ? "Off" : "1 custom source";
             source.subtitle = "Legacy custom source; Steam still verifies content access.";
             std::vector<sls::Source> providers;
             sls::ParseSourceList(state_.sls_source_list, &providers);
-            auto& add_source = add("settings-sls-add", RowKind::Action, "SLS Den · Add provider", "sls-provider-add");
+            auto& add_source = add("settings-sls-add", RowKind::Action, "Lua Den · Add provider", "sls-provider-add");
             add_source.value = std::to_string(providers.size()) + "/16";
             add_source.subtitle = "Add an HTTPS URL containing {appid}. Sources are tried in order.";
             for (std::size_t i = 0; i < providers.size(); ++i) {
@@ -5826,7 +5826,7 @@ void Simulation::commit_editor() {
         }
         return;
     }
-    if (state_.editor.purpose == "SLS Den provider URL") {
+    if (state_.editor.purpose == "Lua Den provider URL") {
         const auto value = trimmed(state_.editor.value);
         std::vector<sls::Source> providers;
         if (!sls::ParseSourceList(state_.sls_source_list, &providers)) return;
@@ -6564,7 +6564,7 @@ void Simulation::activate() {
         if(id=="moapikey" || id=="ryuu" || id=="steamweb")
             start_editor("SLS key: "+id,"",true);
     } else if (live() && action_name == "sls-provider-add") {
-        start_editor("SLS Den provider URL", "");
+        start_editor("Lua Den provider URL", "");
     } else if (live() && (action_name.rfind("sls-provider-toggle-", 0) == 0 ||
                           action_name.rfind("sls-provider-remove-", 0) == 0)) {
         const bool remove = action_name.rfind("sls-provider-remove-", 0) == 0;
