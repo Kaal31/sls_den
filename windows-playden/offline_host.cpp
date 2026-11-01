@@ -245,8 +245,14 @@ int main(int argc,char** argv){
    catalog_page.total=1;
    catalog_page.titles.push_back({620,"Portal 2 (public result)"});
    simulation.UpdateSteamCatalogResults(*catalog_request,std::move(catalog_page));
-   const auto catalog_view=simulation.snapshot();
-   if(catalog_view.find("Portal 2 (public result)")==std::string::npos) {
+   simulation.tick(); // Rebuild projected rows after the asynchronous result arrives.
+   const auto& catalog_rows=simulation.view().rows;
+   const auto catalog_found=std::find_if(catalog_rows.begin(),catalog_rows.end(),
+     [](const auto& row) {
+       return row.key=="steam-catalog-620" && row.title=="Portal 2 (public result)" &&
+              row.action=="steam-catalog-info";
+     });
+   if(catalog_found==catalog_rows.end()) {
      StartupError("Public Steam catalog result was not shown");return 8;
    }
    simulation.action("route:home");
