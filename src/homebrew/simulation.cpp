@@ -5189,6 +5189,36 @@ void Simulation::rebuild_view() {
         if (state_.account().authentication != AuthState::SignedOut)
             add("settings-signout", RowKind::Action, "Sign out", "signout-confirm").dangerous = true;
         section = "Library";
+        // Source names follow SLSDeck defaults/api.json; offline mode shows a local
+        // catalogue only and never contacts these endpoints.
+        {
+            const std::array<std::pair<const char*,const char*>,5> sls_defaults{{
+                {"Ryuu","https://generator.ryuu.lol/api/download/{appid}?file_type=manifest"},
+                {"Sushi","https://raw.githubusercontent.com/sushi-dev55-alt/sushitools-games-repo-alt/refs/heads/main/{appid}.zip"},
+                {"Sushi CDN Mirror","https://cdn.jsdelivr.net/gh/sushi-dev55-alt/sushitools-games-repo-alt@main/{appid}.zip"},
+                {"TwentyTwo Cloud","https://api.twentytwocloud.com/download?appid={appid}"},
+                {"Morrenus","https://hubcapmanifest.com/api/v1/manifest/{appid}?api_key=<moapikey>"}
+            }};
+            auto& heading = add("settings-sls-sources", RowKind::Status, "SLS Den · Sources", "");
+            heading.subtitle = "SLSDeck source catalogue · offline preview, no network requests";
+            for(std::size_t i=0;i<sls_defaults.size();++i){
+                auto& entry=add("settings-sls-default-"+std::to_string(i),RowKind::Status,
+                                sls_defaults[i].first,"");
+                entry.value="Preview";
+                entry.subtitle=sls_defaults[i].second;
+            }
+            const std::array<std::pair<const char*,const char*>,3> key_fields{{
+                {"moapikey","Hubcap / Morrenus API key"},
+                {"ryuu","Ryuu API key"},
+                {"steamweb","Steam Web API key"}
+            }};
+            for(const auto& field:key_fields){
+                auto& row=add("settings-sls-key-"+std::string(field.first),RowKind::Action,
+                              field.second,"sls-key-edit-"+std::string(field.first));
+                row.value=sls_preview_keys_.count(field.first)?"Set (session)":"Not set";
+                row.subtitle="Masked session-only credential; no key is included in the profile or logs";
+            }
+        }
         if (live()) {
             auto& source = add("settings-manifest-source", RowKind::Action, "SLS Den · Manifest source", "manifest-source-edit");
             source.value = state_.sls_source_url.empty() ? "Off" : "1 custom source";
@@ -5755,6 +5785,20 @@ void Simulation::submit_fixture_sign_in() {
 }
 
 void Simulation::commit_editor() {
+    if(state_.editor.purpose.rfind("SLS key: ",0)==0){
+        const std::string id=state_.editor.purpose.substr(9);
+        if(id=="moapikey" || id=="ryuu" || id=="steamweb"){
+            auto& existing=sls_preview_keys_[id];
+            steam::ZeroizeSecret(existing);
+            existing=state_.editor.value;
+            steam::ZeroizeSecret(state_.editor.value);
+            steam::ZeroizeSecret(state_.editor.original);
+            state_.editor.active=false;
+            state_.editor.secret=false;
+            state_.navigation.focus_key="settings-sls-key-"+id;
+        }
+        return;
+    }
     if (state_.editor.purpose == "SLS Den provider URL") {
         const auto value = trimmed(state_.editor.value);
         std::vector<sls::Source> providers;
@@ -6468,6 +6512,10 @@ void Simulation::activate() {
         state_.navigation.selected_game_id = selected.game_id;
         state_.navigation.route = Route::Details;
         details_primary_pending_ = live(); state_.navigation.focus_key = live() ? "details-favorite" : (is_installed(state_, selected.game_id) ? "details-play" : "details-install");
+    } else if(action_name.rfind("sls-key-edit-",0)==0) {
+        const std::string id=action_name.substr(13);
+        if(id=="moapikey" || id=="ryuu" || id=="steamweb")
+            start_editor("SLS key: "+id,"",true);
     } else if (live() && action_name == "sls-provider-add") {
         start_editor("SLS Den provider URL", "");
     } else if (live() && (action_name.rfind("sls-provider-toggle-", 0) == 0 ||
