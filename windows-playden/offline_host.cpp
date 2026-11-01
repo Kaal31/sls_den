@@ -317,6 +317,55 @@ int main(int argc,char** argv){
      }
    }
    Log("Game detail fixes readiness UI smoke test passed");
+   // Exercise the real native UI action dispatch and filesystem fix engine on
+   // a vetted synthetic installation. Never use a Steam catalogue entry as a root.
+   {
+     const auto selected=simulation.state().navigation.detail_id;
+     const auto app=selected ? selected->steam_app() : std::optional<std::uint32_t>{};
+     if(app) {
+       const auto fix_root=fs::temp_directory_path()/"lua-den-ui-fix-flow-ci";
+       std::error_code e;
+       fs::remove_all(fix_root,e);
+       fs::create_directories(fix_root/"drive_c"/"game",e);
+       if(e){StartupError("Cannot create curated fix UI fixture");return 8;}
+       const auto target=fix_root/"drive_c"/"game"/"settings.ini";
+       {std::ofstream original(target,std::ios::binary);original<<"original=1\n";}
+       playden::sls::VerifiedGameRoot root{*app,fix_root,"fixture-1",true,true,true};
+       playden::sls::CuratedConfigFix definition{*app,"fixture-graphics","Fixture configuration",
+         "drive_c/game/settings.ini","original=2\n","fixture-1"};
+       simulation.SetVerifiedGameFixes({{*app,root}},{definition});
+       simulation.tick();
+       const auto row_has=[&](const std::string& key) {
+         const auto& rows=simulation.view().rows;
+         return std::any_of(rows.begin(),rows.end(),[&](const auto& row){return row.key==key;});
+       };
+       if(!row_has("fix-apply-fixture-graphics")||!row_has("fix-undo-fixture-graphics")){
+         StartupError("Curated fixes were not rendered on native game details");return 8;
+       }
+       if(!simulation.action("focus:fix-apply-fixture-graphics")||!simulation.action("cross")) {
+         StartupError("Curated Apply action not reachable");return 8;
+       }
+       auto read_config=[&]() {
+         std::ifstream in(target,std::ios::binary);
+         return std::string(std::istreambuf_iterator<char>(in),std::istreambuf_iterator<char>());
+       };
+       if(read_config()!="original=2\n"){StartupError("UI Apply did not replace configuration");return 8;}
+       // Reopen with the same verified fixture to prove disk-backed restore state.
+       simulation.SetVerifiedGameFixes({{*app,root}},{definition});
+       simulation.tick();
+       if(!simulation.action("focus:fix-undo-fixture-graphics")||!simulation.action("cross")||
+          read_config()!="original=1\n"){
+         StartupError("UI Unfix did not restore original configuration");return 8;
+       }
+       if(fs::exists(target.string()+".lua-den-original")||
+          fs::exists(target.string()+".lua-den-applied")){
+         StartupError("Unfix left stale backup markers");return 8;
+       }
+       simulation.SetVerifiedGameFixes({},{});
+       fs::remove_all(fix_root,e);
+     }
+   }
+   Log("Curated native Fixes listing -> Apply -> Unfix smoke test passed");
 
    simulation.action("route:home");
    simulation.action("route:library");
