@@ -7,6 +7,7 @@
 #include "sls/source_catalog.h"
 #include "sls/source_list.h"
 #include "sls/provider_registry.h"
+#include "sls/provider_preferences.h"
 #include "sls/credential_adapter.h"
 #include <charconv>
 #include "runtime/game_probe.h"
@@ -804,6 +805,15 @@ Simulation::Simulation(std::filesystem::path fixture_directory, std::filesystem:
     scenario("default");
     load_profile();
     rebuild_view();
+}
+
+void Simulation::SetSlsSourcePreferencePath(std::filesystem::path path) {
+    sls_source_preference_path_=std::move(path);
+    if(!sls_source_preference_path_.empty()) {
+        sls::ProviderSelection loaded;
+        if(sls::LoadSelection(sls_source_preference_path_,&loaded)) sls_sources_=std::move(loaded);
+        rebuild_view();
+    }
 }
 
 void Simulation::reset_default_state() {
@@ -6527,6 +6537,8 @@ void Simulation::activate() {
         if(idx.size()==1 && idx[0]>='0' && idx[0]<='4'){
             const std::string id="sls-default-"+idx;
             sls_sources_.toggle(static_cast<std::size_t>(idx[0]-'0'));
+            if(!sls_source_preference_path_.empty())
+                sls::SaveSelection(sls_source_preference_path_,sls_sources_);
         }
     } else if(action_name.rfind("sls-key-edit-",0)==0) {
         const std::string id=action_name.substr(13);
