@@ -7966,6 +7966,20 @@ bool Simulation::action(const std::string& logical_action) {
         show_ready_prompt();
         save_profile(); rebuild_view(); return true;
     }
+    if (logical_action.rfind("click:rail-", 0) == 0) {
+        if (state_.navigation.route != Route::Library || !state_.navigation.modals.empty()) return false;
+        const std::string key = logical_action.substr(6);
+        const std::string scope = key.substr(5);
+        if (scope != "new-collection" && scope != "installed" && scope != "all" &&
+            scope != "favorites" && scope != "hidden" && scope != "imported" &&
+            std::none_of(state_.library.collections.begin(), state_.library.collections.end(),
+                         [&scope](const Collection& c) { return c.id == scope; })) return false;
+        state_.navigation.library_rail_focused = true;
+        state_.navigation.focus_key = key;
+        activate();
+        rebuild_view();
+        return true;
+    }
     if (logical_action.rfind("focus:", 0) == 0) {
         const auto key = logical_action.substr(6);
         const auto found = std::find_if(view_.rows.begin(), view_.rows.end(), [&key](const ViewRow& row) { return row.key == key; });
