@@ -450,6 +450,19 @@ class Render::Impl
             glDeleteFramebuffers(1, &capture_framebuffer_);
     }
 
+    struct HitTarget { gfx::Rect bounds; std::string action; bool modal; };
+    void add_hit(const gfx::Rect& rect, std::string action, bool modal=false) {
+        if(rect.w>0 && rect.h>0 && !action.empty()) hits_.push_back({rect,std::move(action),modal});
+    }
+    std::optional<std::string> hit_test(float x,float y) const {
+        const bool blocked = current_state_ && !current_state_->navigation.modals.empty();
+        for(auto it=hits_.rbegin();it!=hits_.rend();++it) {
+            if(blocked && !it->modal) continue;
+            const auto& b=it->bounds;
+            if(x>=b.x && x<b.x+b.w && y>=b.y && y<b.y+b.h) return it->action;
+        }
+        return std::nullopt;
+    }
     void draw(Simulation &simulation, int width, int height, float dt)
     {
         if (!ready_ || width <= 0 || height <= 0)
@@ -457,6 +470,7 @@ class Render::Impl
 
         scene_.clear();
         overlay_.clear();
+        hits_.clear();
         stats_.grid_focused_game_id = 0;
         grid_focused_game_ = {};
         stats_.grid_drawn_cell_count = 0;
@@ -860,6 +874,8 @@ class Render::Impl
                               : count.empty() ? 0.0F : fonts_.semibold.measure(count, 16.0F) + 26.0F;
             const float width = 22.0F + 26.0F + 10.0F + label + badge + 22.0F;
             const gfx::Rect box{x, cy - 26.0F, width, 52.0F};
+            static constexpr const char* tab_routes[]={"route:home","route:library","route:downloads","route:saves","route:settings"};
+            add_hit(box, tab_routes[tab]);
             // With the bar focused (Up from the top of a page) the focused tab carries the focus ring.
             const bool tab_focused = current_state_->navigation.tabs_focused &&
                                      current_state_->navigation.modals.empty() && current_state_->navigation.tab_focus == tab;
@@ -1386,6 +1402,8 @@ class Render::Impl
             {
                 const ViewRow &cell = shelf.items[static_cast<std::size_t>(item_index)];
                 const gfx::Rect art{kSafeX + item_index * tile_pitch - horizontal, top + 28.0F, tile_width, 320.0F};
+                if(art.y>=180.0F && art.y+art.h<=kFooterY)
+                    add_hit(art, cell.game_id.valid() ? "details:"+ToKey(cell.game_id) : "route:library");
                 const bool focused = route_focus_ && shelf_index == active_shelf &&
                                      item_index == focused_item;
                 if (!cell.game_id.valid() && cell.action == "shelf-more")
@@ -1518,6 +1536,7 @@ class Render::Impl
             const Game &game = *visible_grid_games_[static_cast<std::size_t>(index)];
             const bool focused = route_focus_ && !current_state_->navigation.library_rail_focused &&
                                  game.id == grid_focused_game_;
+            add_hit(cell, "details:"+ToKey(game.id));
             draw_poster(game, cell, focused, job_progress(game.id), true,
                         "library-" + ToKey(game.id));
         };
@@ -3452,6 +3471,7 @@ class Render::Impl
         for (std::size_t index = 0; index < view.rows.size(); ++index)
         {
             const gfx::Rect button{panel.x + pad + index * (button_width + 16.0F), y, button_width, 68.0F};
+            if(view.rows[index].enabled) add_hit(button, view.rows[index].action, true);
             mac_button(overlay_, button, overlay_label(view.rows[index]), view.rows[index].dangerous,
                        control_focus("modal-" + view.rows[index].key, static_cast<int>(index) == view.focused_row),
                        !view.rows[index].enabled, "", false, kPanel);
@@ -4079,6 +4099,8 @@ class Render::Impl
                                   row.kind == RowKind::Toggle;
             const bool described = (settings_sheet || checkbox || view.surface == "installed-games" || import_sheet) && !row.subtitle.empty() && row.kind != RowKind::Heading;
             const gfx::Rect rect{bounds.x, y, bounds.w, described ? 96.0F + hint_extra(row) : 72.0F};
+            if(row.enabled && y>=bounds.y && y+rect.h<=bounds.y+bounds.h)
+                add_hit(rect, row.action, true);
             const float amount = control_focus("sheet-" + row.key, index == view.focused_row);
             focus_glow(overlay_, rect, amount);
             overlay_.rounded_rect(rect, 8.0F, kPanel);
@@ -4244,6 +4266,7 @@ class Render::Impl
     mutable int capture_width_ = 0;
     mutable int capture_height_ = 0;
     RenderStats stats_{};
+    std::vector<HitTarget> hits_;
 };
 
 Render::Render(std::filesystem::path assets_directory, ArtworkService* artwork)
@@ -4263,6 +4286,10 @@ void Render::draw(Simulation &simulation, int width, int height, float dt)
 bool Render::capture_png(const std::filesystem::path &path, int width, int height) const
 {
     return impl_->capture_png(path, width, height);
+}
+
+std::optional<std::string> Render::hit_test(float x,float y) const {
+    return impl_->hit_test(x,y);
 }
 
 RenderStats Render::diagnostics() const noexcept
