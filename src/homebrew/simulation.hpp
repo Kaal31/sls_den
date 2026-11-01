@@ -582,6 +582,9 @@ struct State {
     }
     std::uint64_t account_generation = 1; // Invalidates account-scoped presentation resources.
     std::vector<Game> games;
+    // Presentation-only badge settings and cached ratings; never establish ownership.
+    std::array<bool,5> badge_enabled{{true,true,true,true,true}}; // LEGIT, ADDED, DENUVO, FIXED, ProtonDB
+    std::map<std::uint32_t,std::string> protondb_cover_ratings;
     UserLibrary library;
     std::vector<Installation> installations;
     std::vector<Job> jobs;
