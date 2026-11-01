@@ -903,6 +903,7 @@ private:
     std::string catalog_search_status_;
     std::string catalog_search_query_;
     sls::SteamCatalogPage catalog_search_results_;
+    std::size_t catalog_display_page_ = 0;
     sls::ProviderSelection sls_sources_; // Shared provider toggle model, no network activity.
     std::filesystem::path sls_source_preference_path_;
     std::string sls_fixture_discovery_status_ = "Not checked";
