@@ -12,6 +12,7 @@
 #endif
 #include <algorithm>
 #include <chrono>
+#include <cstdlib>
 #include <cstdio>
 #include <array>
 #include <ctime>
@@ -262,6 +263,29 @@ int main(int argc,char** argv){
        if(e.type==SDL_QUIT)running=false;
        else if(e.type==SDL_KEYDOWN && !e.key.repeat){
          if(const auto* action=LogicalKey(e.key.keysym.sym))simulation.action(action);
+       }else if(e.type==SDL_MOUSEWHEEL){
+         // Wheel navigation follows the currently focused list, like D-pad Up/Down.
+         const int steps=std::min(6,std::abs(e.wheel.y));
+         for(int n=0;n<steps;++n)
+           simulation.action(e.wheel.y>0?"up":"down");
+       }else if(e.type==SDL_MOUSEBUTTONDOWN && e.button.button==SDL_BUTTON_LEFT){
+         int window_w=0,window_h=0;
+         SDL_GetWindowSize(window,&window_w,&window_h);
+         if(window_w>0 && window_h>0){
+           const float px=static_cast<float>(e.button.x)*1920.0f/window_w;
+           const float py=static_cast<float>(e.button.y)*1080.0f/window_h;
+           // Header shortcuts: only handle known fixed top-level regions.
+           // Clicks elsewhere are intentionally not presented as accurate hit-testing.
+           if(py>=50.0f && py<=115.0f){
+             const char* route=nullptr;
+             if(px>=95 && px<250)route="route:home";
+             else if(px>=250 && px<425)route="route:library";
+             else if(px>=425 && px<605)route="route:downloads";
+             else if(px>=605 && px<785)route="route:saves";
+             else if(px>=785 && px<990)route="route:settings";
+             if(route)simulation.action(route);
+           }
+         }
        }else if(e.type==SDL_CONTROLLERDEVICEADDED)open_controller();
        else if(e.type==SDL_CONTROLLERDEVICEREMOVED){
          if(controller && SDL_JoystickInstanceID(SDL_GameControllerGetJoystick(controller))==e.cdevice.which){
