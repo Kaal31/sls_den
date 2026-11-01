@@ -587,6 +587,7 @@ struct State {
     std::array<bool,5> badge_enabled{{true,true,true,true,true}}; // LEGIT, ADDED, DENUVO, FIXED, ProtonDB
     std::map<std::uint32_t,std::string> protondb_cover_ratings;
     std::set<std::uint32_t> denuvo_cover_ids;
+    std::set<std::uint32_t> fixed_cover_ids; // verified on-disk status, never just a saved flag
     UserLibrary library;
     std::vector<Installation> installations;
     std::vector<Job> jobs;
