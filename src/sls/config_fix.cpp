@@ -17,8 +17,10 @@ bool SafePath(const fs::path& root,const fs::path& relative,fs::path* target) {
   if(ec)return false;
   auto a=parent.begin(),b=base.begin();
   for(;b!=base.end();++a,++b)if(a==parent.end()||*a!=*b)return false;
+  ec.clear();
   if(fs::is_symlink(candidate,ec))return false;
-  if(ec)return false;
+  // Missing targets are valid for file-creation fixes.
+  if(ec && ec!=std::errc::no_such_file_or_directory)return false;
   *target=candidate;
   return true;
 }
