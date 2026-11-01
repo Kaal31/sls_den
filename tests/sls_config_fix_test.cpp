@@ -26,15 +26,18 @@ int main(){
  {std::ofstream o(file,std::ios::binary);o<<"original=1\n";}
  check(ApplyConfigFix(root,"drive_c/game/settings.ini","original=2\n")==FixResult::Applied,"apply replacement");
  check(read(file)=="original=2\n","replacement written");
+ check(playden::sls::InspectConfigFix(root,"drive_c/game/settings.ini")==FixResult::Applied,"applied-state probe verifies exact contents");
  check(ApplyConfigFix(root,"drive_c/game/settings.ini","bad")==FixResult::AlreadyApplied,"no double backup");
  check(RestoreConfigFix(root,"drive_c/game/settings.ini")==FixResult::Restored,"unfix succeeds");
  check(read(file)=="original=1\n","original restored byte-for-byte");
+ check(playden::sls::InspectConfigFix(root,"drive_c/game/settings.ini")==FixResult::NotApplied,"probe reports restored fix as inactive");
  check(ApplyConfigFix(root,"drive_c/game/new.ini","created=true\n")==FixResult::Applied,"create file");
  check(RestoreConfigFix(root,"drive_c/game/new.ini")==FixResult::Restored && !fs::exists(root/"drive_c"/"game"/"new.ini"),"remove created file");
  check(ApplyConfigFix(root,"drive_c/game/settings.ini","patched=1\n")==FixResult::Applied,"apply conflict fixture");
  {std::ofstream o(file,std::ios::binary|std::ios::trunc);o<<"user-change=1\n";}
  check(RestoreConfigFix(root,"drive_c/game/settings.ini")==FixResult::Conflict,"preserve user modifications");
  check(read(file)=="user-change=1\n","modified content retained");
+ check(playden::sls::InspectConfigFix(root,"drive_c/game/settings.ini")==FixResult::Conflict,"probe detects modified fix");
  {std::ofstream o(file,std::ios::binary|std::ios::trunc);o<<"patched=1\n";}
  check(RestoreConfigFix(root,"drive_c/game/settings.ini")==FixResult::Restored,"restore after resolving conflict");
  // A created file changed by the user must never be deleted by Unfix.
