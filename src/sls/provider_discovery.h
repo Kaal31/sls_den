@@ -86,7 +86,7 @@ inline Resolution DiscoverManifestWithCredentials(
         const bool fetched=fetch(provider_id,std::string(provider.url_template),
                                  app_id,secret,&payload,&error);
         // Do not retain credential contents in the resolver beyond this request.
-        std::fill(secret.begin(),secret.end(),'\\0');
+        std::fill(secret.begin(),secret.end(),'\0');
         secret.clear();
         if(!fetched){
             result.attempts.push_back({provider_id,"fetch_failed"});
@@ -97,7 +97,7 @@ inline Resolution DiscoverManifestWithCredentials(
             continue;
         }
         // ZIP local-file header; never feed an archive to the Lua parser.
-        if(payload.size()>=4 && payload.compare(0,4,"PK\\x03\\x04")==0){
+        if(payload.size()>=4 && payload.compare(0,4,"PK\x03\x04")==0){
             std::string manifest;
             if(!decode_zip || !decode_zip(payload,app_id,&manifest,&error) ||
                manifest.size()>1024*1024){
