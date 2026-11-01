@@ -8,6 +8,7 @@
 #include "library/model.h"
 #include "runtime/game_settings.h"
 #include "sls/provider_registry.h"
+#include "sls/steam_catalog_search.h"
 
 #include <array>
 #include <cstdint>
@@ -723,6 +724,8 @@ public:
 
     void SetSlsSourcePreferencePath(std::filesystem::path path);
     [[nodiscard]] std::optional<std::string> TakeSteamCatalogSearchRequest();
+    void UpdateSteamCatalogResults(std::string query,sls::SteamCatalogPage page);
+    void FailSteamCatalogSearch(std::string query);
     bool scenario(const std::string& name);
     void SetMockSourceStatus(std::string status);
     bool action(const std::string& logical_action);
@@ -898,6 +901,8 @@ private:
     std::map<std::string, std::string> sls_preview_keys_;
     std::optional<std::string> pending_catalog_search_;
     std::string catalog_search_status_;
+    std::string catalog_search_query_;
+    sls::SteamCatalogPage catalog_search_results_;
     sls::ProviderSelection sls_sources_; // Shared provider toggle model, no network activity.
     std::filesystem::path sls_source_preference_path_;
     std::string sls_fixture_discovery_status_ = "Not checked";
