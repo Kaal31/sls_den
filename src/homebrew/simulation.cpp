@@ -873,6 +873,15 @@ void Simulation::SetVerifiedGameFixes(
     std::vector<sls::CuratedConfigFix> definitions) {
     verified_fix_roots_ = std::move(roots);
     curated_fixes_ = std::move(definitions);
+    state_.fixed_cover_ids.clear();
+    for(const auto& def:curated_fixes_) {
+        const auto root=verified_fix_roots_.find(def.steam_app_id);
+        if(root!=verified_fix_roots_.end() &&
+           sls::CheckGameFixAvailability(root->second,{def})==sls::GameFixAvailability::Available &&
+           sls::InspectConfigFix(root->second.root,def.relative_path)==sls::FixResult::Applied)
+            state_.fixed_cover_ids.insert(def.steam_app_id);
+    }
+    rebuild_view();
 }
 void Simulation::SetSlsSourcePreferencePath(std::filesystem::path path) {
     sls_source_preference_path_=std::move(path);
@@ -5226,7 +5235,10 @@ void Simulation::rebuild_view() {
                         for(const auto& fix:curated_fixes_) {
                             if(fix.steam_app_id!=*app || (!fix.installed_version.empty() &&
                                  fix.installed_version!=root->second.version))continue;
+                            const auto disk=sls::InspectConfigFix(root->second.root,fix.relative_path);
                             auto& apply=row("fix-apply-"+fix.id,RowKind::Action,"Apply "+fix.title,"curated-fix-apply");
+                            apply.value=disk==sls::FixResult::Applied ? "Applied" :
+                                disk==sls::FixResult::Conflict ? "Conflict" : "Not applied";
                             apply.subtitle="Backup current configuration and apply the local fix";
                             auto& undo=row("fix-undo-"+fix.id,RowKind::Action,"Unfix "+fix.title,"curated-fix-undo");
                             undo.subtitle="Restore original configuration unless user changes conflict";
@@ -6804,6 +6816,16 @@ void Simulation::activate() {
                 else if(result==sls::FixResult::UnsafePath)message="Fix refused: unverified target or unsafe path.";
                 else if(result==sls::FixResult::TooLarge)message="Fix refused: configuration exceeds the size limit.";
                 else message="Fix failed due to filesystem I/O; original backup was retained if possible.";
+                if(sls::InspectConfigFix(root->second.root,found->relative_path)==sls::FixResult::Applied)
+                    state_.fixed_cover_ids.insert(*app);
+                else {
+                    state_.fixed_cover_ids.erase(*app);
+                    for(const auto& candidate:curated_fixes_) {
+                        if(candidate.steam_app_id==*app &&
+                            sls::InspectConfigFix(root->second.root,candidate.relative_path)==sls::FixResult::Applied)
+                            state_.fixed_cover_ids.insert(*app);
+                    }
+                }
             }
         }
         push_notice({"curated-fix-result",message,"",false,0,true});
