@@ -74,6 +74,7 @@ const char* LogicalKey(SDL_Keycode key){
 }
 }
 fs::path LogPath() {
+ automated_test_mode=options.self_test || options.navigation_test || options.headless;
 #ifdef _WIN32
  wchar_t executable[32768]{};
  if(GetModuleFileNameW(nullptr,executable,32768)>0) {
@@ -90,6 +91,7 @@ std::string Utf8Path(const fs::path& path) {
   return std::string(bytes.begin(),bytes.end());
 }
 fs::path startup_log;
+bool automated_test_mode=false;
 void Log(const std::string& message) {
  if(startup_log.empty()) return;
 #ifdef _WIN32
@@ -106,6 +108,7 @@ void StartupError(const std::string& message) {
  Log("ERROR: "+message);
  std::fprintf(stderr,"Lua Den Windows: %s\\n",message.c_str());
 #ifdef _WIN32
+ if(automated_test_mode)return; // No modal dialogs in headless CI assertions.
  // Do not round-trip a Unicode log path through the Windows ANSI code page.
  std::wstring display_w=L"Lua Den startup failed. See the startup log:\n";
  display_w+=startup_log.wstring();
