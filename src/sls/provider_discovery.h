@@ -56,9 +56,17 @@ using CredentialSourceFetch = std::function<bool(
     std::uint32_t app_id, std::string_view credential,
     std::string* payload, std::string* error)>;
 
+// Hosts may supply an archive parser. It must enforce decompressed size limits,
+// validate CRCs and select only a safe Lua manifest; the shared resolver never
+// writes ZIP entries to disk. No parser means ZIP payloads fail closed.
+using ZipManifestDecoder = std::function<bool(
+    std::string_view zip_bytes, std::uint32_t app_id,
+    std::string* manifest, std::string* error)>;
+
 inline Resolution DiscoverManifestWithCredentials(
     std::uint32_t app_id, const ProviderSelection& selection,
-    const CredentialLookup& lookup, const CredentialSourceFetch& fetch) {
+    const CredentialLookup& lookup, const CredentialSourceFetch& fetch,
+    const ZipManifestDecoder& decode_zip = {}) {
     Resolution result;
     if(!app_id || !fetch)return result;
     for(std::size_t i=0;i<kDefaultProviders.size();++i){
@@ -87,6 +95,16 @@ inline Resolution DiscoverManifestWithCredentials(
         if(payload.size()>1024*1024){
             result.attempts.push_back({provider_id,"response_too_large"});
             continue;
+        }
+        // ZIP local-file header; never feed an archive to the Lua parser.
+        if(payload.size()>=4 && payload.compare(0,4,"PK\\x03\\x04")==0){
+            std::string manifest;
+            if(!decode_zip || !decode_zip(payload,app_id,&manifest,&error) ||
+               manifest.size()>1024*1024){
+                result.attempts.push_back({provider_id,"invalid_archive"});
+                continue;
+            }
+            payload=std::move(manifest);
         }
         ManifestMetadata parsed;
         if(!ParseManifestMetadata(app_id,payload,&parsed,&error) || parsed.depots.empty()){
