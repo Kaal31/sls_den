@@ -891,6 +891,8 @@ private:
     std::filesystem::path profile_path_;
     ModelMode mode_ = ModelMode::Simulation;
     State state_;
+    // Session-only credentials for the offline preview; never part of saved profiles or snapshots.
+    std::map<std::string, std::string> sls_preview_keys_;
     ViewData view_;
     ViewData route_view_;
     std::string last_error_;
