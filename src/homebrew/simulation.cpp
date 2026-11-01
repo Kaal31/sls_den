@@ -5214,7 +5214,8 @@ void Simulation::rebuild_view() {
                                 std::string(sls::kDefaultProviders[i].name),"sls-default-toggle-"+std::to_string(i));
                 entry.value=enabled?"Enabled":"Disabled";
                 entry.subtitle=std::string(sls::kDefaultProviders[i].url_template)+
-                   (i==4 && !sls::HasStoredKey("moapikey")?
+                   (!sls::kDefaultProviders[i].required_key.empty() &&
+                    !sls::HasStoredKey(std::string(sls::kDefaultProviders[i].required_key))?
                     " · API key needed":" · Offline fixture mode");
             }
             for(const auto& field:sls::kKeyDefinitions){
