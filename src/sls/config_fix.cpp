@@ -38,6 +38,23 @@ FixResult ApplyConfigFix(const fs::path& root,const fs::path& relative,std::stri
   const auto backup=fs::path(target.string()+".lua-den-original");
   const auto created=fs::path(target.string()+".lua-den-created");
   const auto applied=fs::path(target.string()+".lua-den-applied");
+  const auto temp=fs::path(target.string()+".lua-den-temp");
+  const auto replace_staging=fs::path(target.string()+".lua-den-replace-staging");
+  const auto restore_staging=fs::path(target.string()+".lua-den-restore-staging");
+  // Check for interrupted transactions BEFORE producing a backup or marker.
+  // Refuse to overwrite any sidecar that might contain recovery data.
+  for(const auto& sidecar : {temp,replace_staging,restore_staging}) {
+    if(fs::exists(sidecar,ec))return FixResult::Conflict;
+    if(ec)return FixResult::IoError;
+    if(fs::is_symlink(sidecar,ec))return FixResult::UnsafePath;
+    if(ec && ec!=std::errc::no_such_file_or_directory)return FixResult::IoError;
+    ec.clear();
+  }
+  for(const auto& sidecar : {backup,created,applied}) {
+    if(fs::is_symlink(sidecar,ec))return FixResult::UnsafePath;
+    if(ec && ec!=std::errc::no_such_file_or_directory)return FixResult::IoError;
+    ec.clear();
+  }
   if(fs::exists(backup,ec)||fs::exists(created,ec)||fs::exists(applied,ec))return FixResult::AlreadyApplied;
   if(ec)return FixResult::IoError;
   const bool existed=fs::exists(target,ec);
@@ -53,7 +70,6 @@ FixResult ApplyConfigFix(const fs::path& root,const fs::path& relative,std::stri
     std::ofstream marker(created,std::ios::binary);
     if(!marker)return FixResult::IoError;
   }
-  const auto temp=fs::path(target.string()+".lua-den-temp");
   // Snapshot exactly what was applied, so Unfix refuses to overwrite changes.
   // Refuse stale/foreign sidecars rather than truncating them.
   if(fs::exists(temp,ec)||fs::exists(applied,ec))return FixResult::Conflict;
