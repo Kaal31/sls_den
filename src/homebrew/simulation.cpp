@@ -5,6 +5,7 @@
 
 #include "homebrew/simulation.hpp"
 #include "sls/source_catalog.h"
+#include <iomanip>
 #include "sls/source_list.h"
 #include "sls/provider_registry.h"
 #include "sls/provider_preferences.h"
@@ -837,8 +838,49 @@ void Simulation::FailSteamCatalogSearch(std::string query) {
         catalog_search_status_="Store search failed · retry";
 }
 
+void Simulation::SaveAddedGames() const {
+    if(sls_source_preference_path_.empty())return;
+    const auto target=sls_source_preference_path_.parent_path()/"added-games.txt";
+    std::error_code ec;
+    std::filesystem::create_directories(target.parent_path(),ec);
+    if(ec)return;
+    const auto temp=std::filesystem::path(target.string()+".tmp");
+    {
+        std::ofstream out(temp,std::ios::trunc);
+        if(!out)return;
+        for(const auto& [id,name]:manually_added_games_)out<<id<<" "<<std::quoted(name)<<"\n";
+        out.flush();
+        if(!out)return;
+    }
+    std::filesystem::rename(temp,target,ec);
+    if(ec) {
+        // Publish safely on platforms where rename cannot replace an existing file.
+        const auto backup=std::filesystem::path(target.string()+".bak");
+        std::error_code ignored;
+        std::filesystem::remove(backup,ignored);
+        ec.clear();
+        if(std::filesystem::exists(target,ignored))
+            std::filesystem::rename(target,backup,ec);
+        if(!ec)std::filesystem::rename(temp,target,ec);
+        if(ec && std::filesystem::exists(backup,ignored))
+            std::filesystem::rename(backup,target,ignored);
+        if(!ec)std::filesystem::remove(backup,ignored);
+    }
+}
+
 void Simulation::SetSlsSourcePreferencePath(std::filesystem::path path) {
     sls_source_preference_path_=std::move(path);
+    manually_added_games_.clear();
+    if(!sls_source_preference_path_.empty()) {
+        std::ifstream in(sls_source_preference_path_.parent_path()/"added-games.txt");
+        std::uint64_t app_id=0;
+        std::string name;
+        while(in>>app_id>>std::quoted(name)) {
+            if(app_id>0 && app_id<=std::numeric_limits<std::uint32_t>::max() &&
+               !name.empty() && name.size()<=256 && manually_added_games_.size()<10000)
+                manually_added_games_[static_cast<std::uint32_t>(app_id)]=name;
+        }
+    }
     if(!sls_source_preference_path_.empty()) {
         std::ifstream in(sls_source_preference_path_.parent_path()/"badge-options.txt");
         std::string toggles;
@@ -4800,6 +4842,20 @@ void Simulation::rebuild_view() {
             }
             if (game->art_failed) item.subtitle = "Artwork unavailable";
         }
+        // Manually registered store titles are NOT Steam entitlements.
+        // Keep them selectable without exposing install/play until a real
+        // authorization and runtime integration exists.
+        for(const auto& [app_id,name]:manually_added_games_) {
+            const auto id=GameId::Steam(app_id);
+            if(find_game(state_,id))continue; // Licensed entry already appears above.
+            if(!state_.library.query.empty()) {
+                const auto needle=FoldLibraryText(state_.library.query);
+                if(FoldLibraryText(name).find(needle)==std::string::npos)continue;
+            }
+            auto& added=row("added-game-"+std::to_string(app_id),RowKind::Action,name,"added-game-info");
+            added.subtitle="Steam App ID "+std::to_string(app_id)+" · Registered only · Not installed";
+            if(state_.badge_enabled[1])added.badge="ADDED";
+        }
         // Discovery stays reachable even if the user has no owned games yet.
         if (state_.library.query.empty()) {
             auto& discover=row("library-discover",RowKind::Action,"Discover Steam games","steam-catalog-open-search");
@@ -4826,7 +4882,10 @@ void Simulation::rebuild_view() {
             for(std::size_t i=first;i<last;++i) {
                 const auto& hit=catalog_search_results_.titles[i];
                 auto& result=row("steam-catalog-"+std::to_string(hit.app_id),RowKind::Action,hit.name,"steam-catalog-info");
-                result.subtitle="Steam App ID "+std::to_string(hit.app_id)+" · Open information";
+                result.subtitle="Steam App ID "+std::to_string(hit.app_id)+" · Public store result";
+                auto& add=row("steam-catalog-add-"+std::to_string(hit.app_id),RowKind::Action,
+                    "Add "+hit.name+" to Lua Den","steam-catalog-add");
+                add.subtitle="Register only · No Steam license or game files are provided";
                 result.badge="Store";
             }
             if(page_index>0) {
@@ -6689,6 +6748,35 @@ void Simulation::activate() {
             if(!sls_source_preference_path_.empty()) {
                 std::ofstream out(sls_source_preference_path_.parent_path()/"badge-options.txt",std::ios::trunc);
                 if(out)for(bool enabled:state_.badge_enabled)out<<(enabled?'1':'0');
+            }
+        }
+    }
+    else if(action_name=="added-game-info" || action_name=="added-game-remove") {
+        const std::string prefix="added-game-";
+        if(selected.key.rfind(prefix,0)==0) {
+            const std::string value=selected.key.substr(prefix.size());
+            const auto hit=std::find_if(manually_added_games_.begin(),manually_added_games_.end(),
+                [&](const auto& entry){return std::to_string(entry.first)==value;});
+            if(hit!=manually_added_games_.end()) {
+                if(action_name=="added-game-remove") {
+                    manually_added_games_.erase(hit);
+                    SaveAddedGames();
+                } else {
+                    push_notice({"added-game-status",hit->second+" · Registered in Lua Den, not Steam-owned. Install and launch require verified content access.","",false,0,true});
+                }
+            }
+        }
+    }
+    else if(action_name=="steam-catalog-add") {
+        const std::string prefix="steam-catalog-";
+        if(selected.key.rfind(prefix,0)==0 && catalog_search_query_==state_.library.query) {
+            const auto value=selected.key.substr(std::string("steam-catalog-add-").size());
+            const auto hit=std::find_if(catalog_search_results_.titles.begin(),catalog_search_results_.titles.end(),
+                [&](const sls::SteamCatalogTitle& t){return std::to_string(t.app_id)==value;});
+            if(hit!=catalog_search_results_.titles.end()) {
+                manually_added_games_[hit->app_id]=hit->name;
+                SaveAddedGames();
+                push_notice({"added-game-saved",hit->name+" added to Lua Den. This does not grant a Steam license or install game files.","",false,0,true});
             }
         }
     }
