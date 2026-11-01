@@ -5211,7 +5211,7 @@ void Simulation::rebuild_view() {
                 const std::string id="sls-default-"+std::to_string(i);
                 const bool enabled=!sls_source_disabled_.contains(id);
                 auto& entry=add("settings-sls-default-"+std::to_string(i),RowKind::Action,
-                                sls::kDefaultProviders[i].name,"sls-default-toggle-"+std::to_string(i));
+                                std::string(sls::kDefaultProviders[i].name),"sls-default-toggle-"+std::to_string(i));
                 entry.value=enabled?"Enabled":"Disabled";
                 entry.subtitle=std::string(sls::kDefaultProviders[i].url_template)+
                    (i==4 && !sls::HasStoredKey("moapikey")?
@@ -5219,8 +5219,8 @@ void Simulation::rebuild_view() {
             }
             for(const auto& field:sls::kKeyDefinitions){
                 auto& row=add("settings-sls-key-"+std::string(field.id),RowKind::Action,
-                              field.label,"sls-key-edit-"+std::string(field.id));
-                row.value=(sls_preview_keys_.count(field.id) || sls::HasStoredKey(field.id))?"Configured":"Not set";
+                              std::string(field.label),"sls-key-edit-"+std::string(field.id));
+                row.value=(sls_preview_keys_.count(std::string(field.id)) || sls::HasStoredKey(std::string(field.id)))?"Configured":"Not set";
                 row.subtitle="Masked credential in Windows Credential Manager; excluded from profiles and logs";
             }
         }
