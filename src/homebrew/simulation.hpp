@@ -721,6 +721,7 @@ public:
     Simulation(std::filesystem::path fixture_directory, std::filesystem::path profile_path,
                ModelMode mode = ModelMode::Simulation);
 
+    void SetSlsSourcePreferencePath(std::filesystem::path path);
     bool scenario(const std::string& name);
     void SetMockSourceStatus(std::string status);
     bool action(const std::string& logical_action);
@@ -895,6 +896,7 @@ private:
     // Session-only credentials for the offline preview; never part of saved profiles or snapshots.
     std::map<std::string, std::string> sls_preview_keys_;
     sls::ProviderSelection sls_sources_; // Shared provider toggle model, no network activity.
+    std::filesystem::path sls_source_preference_path_;
     ViewData view_;
     ViewData route_view_;
     std::string last_error_;
