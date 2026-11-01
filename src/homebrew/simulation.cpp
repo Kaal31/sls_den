@@ -4758,10 +4758,11 @@ void Simulation::rebuild_view() {
             // distinguishing account Steam titles from imported local games.
             // A future SLS-added Steam app must carry explicit registration provenance;
             // never label an app LEGIT based on its numeric Steam app ID alone.
-            const char* provenance = game->id.store == Store::kLocal ? "ADDED" :
-                                     game->id.store == Store::kSteam ? "STEAM" : "LIBRARY";
-            item.badge = provenance;
-            if (state_.library.favorites.contains(game->id)) item.badge += " · Favorite";
+            // Only Steam-based provenance is badged; local/imported titles have no source badge.
+            // SLS vs legitimate Steam provenance requires explicit registration metadata.
+            item.badge = game->id.store == Store::kSteam ? "STEAM" : "";
+            if (state_.library.favorites.contains(game->id))
+                item.badge += item.badge.empty() ? "Favorite" : " · Favorite";
             if (game->art_failed) item.subtitle = "Artwork unavailable";
         }
         // Discovery stays reachable even if the user has no owned games yet.
