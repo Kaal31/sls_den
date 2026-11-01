@@ -58,14 +58,32 @@ jobs:
         shell: pwsh
         run: |
           $env:PATH = "C:\vcpkg\installed\x64-windows\bin;" + $env:PATH
-          & build/windows-offline/playden-windows-offline.exe --self-test
-          if ($LASTEXITCODE -ne 0) { throw "Native Playden offline simulation self-test failed" }
-          & build/windows-offline/playden-windows-offline.exe --scenario first-run --self-test
-          if ($LASTEXITCODE -ne 0) { throw "Windows first-run scenario initialization failed" }
-          & build/windows-offline/playden-windows-offline.exe --scenario offline --self-test
-          if ($LASTEXITCODE -ne 0) { throw "Windows offline scenario initialization failed" }
-          & build/windows-offline/playden-windows-offline.exe --navigation-self-test --self-test
-          if ($LASTEXITCODE -ne 0) { throw "Windows navigation/activation regression test failed" }
+          $exe = (Resolve-Path "build/windows-offline/playden-windows-offline.exe").Path
+          function Invoke-BoundedTest([string] $label, [string[]] $arguments, [int] $maxSeconds = 120) {
+            Write-Host "::group::TEST $label (timeout ${maxSeconds}s)"
+            $out = Join-Path $env:RUNNER_TEMP ("lua-den-" + $label + ".stdout.log")
+            $err = Join-Path $env:RUNNER_TEMP ("lua-den-" + $label + ".stderr.log")
+            $process = Start-Process -FilePath $exe -ArgumentList $arguments -PassThru -NoNewWindow -RedirectStandardOutput $out -RedirectStandardError $err
+            try {
+              if (-not $process.WaitForExit($maxSeconds * 1000)) {
+                Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
+                throw "TIMEOUT: $label did not finish within ${maxSeconds}s"
+              }
+              $process.WaitForExit()
+              if ($process.ExitCode -ne 0) {
+                throw "FAILED: $label exited with code $($process.ExitCode)"
+              }
+            } finally {
+              if (Test-Path $out) { Get-Content $out }
+              if (Test-Path $err) { Get-Content $err }
+              Write-Host "::endgroup::"
+            }
+            Write-Host "PASS: $label"
+          }
+          Invoke-BoundedTest "default" @("--self-test")
+          Invoke-BoundedTest "first-run" @("--scenario", "first-run", "--self-test")
+          Invoke-BoundedTest "offline" @("--scenario", "offline", "--self-test")
+          Invoke-BoundedTest "navigation" @("--navigation-self-test", "--self-test") 180
       - name: Bundle actual Playden Windows application
         shell: pwsh
         run: |
