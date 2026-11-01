@@ -41,5 +41,25 @@ int main() {
   const auto empty=sls::ResolveInstallMetadata(400,{},
       [&](const std::string&,std::string*,std::string*) {++disabled_calls;return false;},granted);
   require(disabled_calls==0 && empty.status=="disabled","offline mode makes no provider requests");
+  // Third-party manifests must never manufacture Steam entitlement.
+  const std::vector<steam::DepotInfo> no_grants{};
+  const auto unowned=sls::ResolveInstallMetadata(400,sources,
+    [&](const std::string& url,std::string* text,std::string*) {
+      if(url.find("backup.example")==std::string::npos)return false;
+      *text="addappid(410)\\nsetManifestid(410, \\"9999\\")\\n";
+      return true;
+    },no_grants);
+  require(unowned.depots.empty(),"unowned game may not generate authorized depots");
+  // A provider can also advertise a depot Steam has not authorized.
+  const auto injected=sls::ResolveInstallMetadata(400,sources,
+    [&](const std::string& url,std::string* text,std::string*) {
+      if(url.find("backup.example")==std::string::npos)return false;
+      *text="addappid(410)\\nsetManifestid(410, \\"9999\\")\\n"
+            "addappid(999)\\nsetManifestid(999, \\"3333\\")\\n";
+      return true;
+    },granted);
+  require(injected.depots.size()==1 && injected.depots[0].id==410 &&
+          injected.depots[0].manifest_gid==1111,
+          "unentitled depot excluded; native Steam manifest retained");
   std::cout<<"PASS: provider fallback, disabled isolation and authorized plan\n";
 }
