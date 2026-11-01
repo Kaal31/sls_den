@@ -5209,7 +5209,7 @@ void Simulation::rebuild_view() {
             heading.subtitle = "SLSDeck source catalogue · offline preview, no network requests";
             for(std::size_t i=0;i<sls::kDefaultProviders.size();++i){
                 const std::string id="sls-default-"+std::to_string(i);
-                const bool enabled=!sls_source_disabled_.contains(id);
+                const bool enabled=sls_sources_.enabled(i);
                 auto& entry=add("settings-sls-default-"+std::to_string(i),RowKind::Action,
                                 std::string(sls::kDefaultProviders[i].name),"sls-default-toggle-"+std::to_string(i));
                 entry.value=enabled?"Enabled":"Disabled";
@@ -6525,7 +6525,7 @@ void Simulation::activate() {
         const std::string idx=action_name.substr(19);
         if(idx.size()==1 && idx[0]>='0' && idx[0]<='4'){
             const std::string id="sls-default-"+idx;
-            if(!sls_source_disabled_.erase(id)) sls_source_disabled_.insert(id);
+            sls_sources_.toggle(static_cast<std::size_t>(idx[0]-'0'));
         }
     } else if(action_name.rfind("sls-key-edit-",0)==0) {
         const std::string id=action_name.substr(13);
