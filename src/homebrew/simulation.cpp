@@ -812,6 +812,16 @@ std::optional<std::string> Simulation::TakeSteamCatalogSearchRequest() {
     return std::exchange(pending_catalog_search_,std::nullopt);
 }
 
+void Simulation::UpdateSteamCatalogResults(std::string query,sls::SteamCatalogPage page) {
+    if(query!=catalog_search_query_)return; // An old worker must not replace a new query.
+    catalog_search_results_=std::move(page);
+    catalog_search_status_=std::to_string(catalog_search_results_.titles.size())+" Steam Store results";
+}
+void Simulation::FailSteamCatalogSearch(std::string query) {
+    if(query==catalog_search_query_)
+        catalog_search_status_="Store search failed · retry";
+}
+
 void Simulation::SetSlsSourcePreferencePath(std::filesystem::path path) {
     sls_source_preference_path_=std::move(path);
     if(!sls_source_preference_path_.empty()) {
@@ -4752,6 +4762,13 @@ void Simulation::rebuild_view() {
                                  "Search Steam Store for: "+state_.library.query,"steam-catalog-search");
             discover.subtitle = catalog_search_status_.empty() ? "Public catalog · includes unowned titles" : catalog_search_status_;
         }
+        // Public results are actions, not Game rows; no implied ownership, installation or Play action.
+        if(catalog_search_query_==state_.library.query && !catalog_search_results_.titles.empty()) {
+            for(const auto& hit:catalog_search_results_.titles) {
+                auto& result=row("steam-catalog-"+std::to_string(hit.app_id),RowKind::Action,hit.name,"steam-catalog-info");
+                result.subtitle="Steam Store · App ID "+std::to_string(hit.app_id)+" · not verified as owned";
+            }
+        }
         // An empty grid offers the way back to the games it hides; Connect a store is only for a missing catalog.
         if (view_.rows.empty()) {
             if (!state_.library.query.empty()) row("clear-search", RowKind::Action, "Clear search", "clear-search");
@@ -6546,8 +6563,13 @@ void Simulation::activate() {
             catalog_search_status_="Enter 2–100 characters to search the public store";
         } else {
             pending_catalog_search_=q;
-            catalog_search_status_="Search requested · awaiting network host";
+            catalog_search_query_=q;
+            catalog_search_results_={};
+            catalog_search_status_="Searching Steam Store…";
         }
+    }
+    else if (action_name == "steam-catalog-info") {
+        push_notice({"steam-catalog-preview","This is a public Steam catalog result; no ownership or install rights are implied.","",false,0,true});
     }
     else if (action_name == "clear-search") { state_.library.query.clear(); reconcile_library_selection(state_); }
     else if (action_name == "library-show-all") { state_.library.scope = "all"; reconcile_library_selection(state_); save_profile(); }
