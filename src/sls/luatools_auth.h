@@ -4,6 +4,8 @@
 // Production hosts provide a TLS-verifying POST callback and protected session storage.
 #include "steam/backend/json.h"
 #include <functional>
+#include <algorithm>
+#include <utility>
 #include <string>
 #include <string_view>
 namespace playden::sls {
