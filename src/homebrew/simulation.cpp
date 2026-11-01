@@ -868,6 +868,12 @@ void Simulation::SaveAddedGames() const {
     }
 }
 
+void Simulation::SetVerifiedGameFixes(
+    std::map<std::uint32_t,sls::VerifiedGameRoot> roots,
+    std::vector<sls::CuratedConfigFix> definitions) {
+    verified_fix_roots_ = std::move(roots);
+    curated_fixes_ = std::move(definitions);
+}
 void Simulation::SetSlsSourcePreferencePath(std::filesystem::path path) {
     sls_source_preference_path_=std::move(path);
     manually_added_games_.clear();
@@ -5207,18 +5213,30 @@ void Simulation::rebuild_view() {
             }
         }
         if(game) {
-            // The fixes UI must never imply that a public manifest is a verified
-            // game patch. Report readiness based on the actual installation.
             auto& fixes=row("details-fixes",RowKind::Action,"Fixes","details-fixes-info");
-            if(!installed) {
-                fixes.value="Unavailable";
-                fixes.subtitle="Install this game before checking compatible fixes";
-            } else if(!installation->available) {
-                fixes.value="Storage unavailable";
-                fixes.subtitle="Reconnect the installed game's storage";
-            } else {
-                fixes.value="Not configured";
-                fixes.subtitle="No verified fix definitions are installed for this game";
+            fixes.value="Unavailable";
+            fixes.subtitle="A verified installed-game path and curated fix are required";
+            if (auto app=game->id.steam_app()) {
+                auto root=verified_fix_roots_.find(*app);
+                if(root!=verified_fix_roots_.end()) {
+                    auto availability=sls::CheckGameFixAvailability(root->second,curated_fixes_);
+                    if(availability==sls::GameFixAvailability::Available) {
+                        fixes.value="Available";
+                        fixes.subtitle="Locally curated configuration fixes";
+                        for(const auto& fix:curated_fixes_) {
+                            if(fix.steam_app_id!=*app || (!fix.installed_version.empty() &&
+                                 fix.installed_version!=root->second.version))continue;
+                            auto& apply=row("fix-apply-"+fix.id,RowKind::Action,"Apply "+fix.title,"curated-fix-apply");
+                            apply.subtitle="Backup current configuration and apply the local fix";
+                            auto& undo=row("fix-undo-"+fix.id,RowKind::Action,"Unfix "+fix.title,"curated-fix-undo");
+                            undo.subtitle="Restore original configuration unless user changes conflict";
+                        }
+                    } else if(availability==sls::GameFixAvailability::VersionMismatch)fixes.value="Version mismatch";
+                    else if(availability==sls::GameFixAvailability::RuntimeUnsupported)fixes.value="Unsupported runtime";
+                    else if(availability==sls::GameFixAvailability::StorageUnavailable)fixes.value="Storage unavailable";
+                    else if(availability==sls::GameFixAvailability::NoDefinitions)fixes.value="No vetted fixes";
+                    else fixes.value="Not installed";
+                }
             }
         }
         row("details-favorite", RowKind::Toggle, "Favorite", "favorite").selected = game && state_.library.favorites.contains(game->id);
@@ -6762,6 +6780,33 @@ void Simulation::activate() {
             --catalog_display_page_;
             state_.navigation.focus_key="steam-catalog-heading";
         }
+    }
+    else if(action_name=="curated-fix-apply" || action_name=="curated-fix-undo") {
+        const bool undo=action_name=="curated-fix-undo";
+        const auto game_id=state_.navigation.detail_id.value_or(state_.navigation.selected_game_id);
+        const auto app=game_id.steam_app();
+        const auto prefix=undo ? std::string("fix-undo-") : std::string("fix-apply-");
+        const auto key=state_.navigation.focus_key;
+        const char* message="Fix refused: missing verified game path or curated definition.";
+        if(app && key.rfind(prefix,0)==0) {
+            const auto root=verified_fix_roots_.find(*app);
+            const auto found=std::find_if(curated_fixes_.begin(),curated_fixes_.end(),
+                [&](const sls::CuratedConfigFix& fix) {
+                    return fix.steam_app_id==*app && fix.id==key.substr(prefix.size());});
+            if(root!=verified_fix_roots_.end() && found!=curated_fixes_.end()) {
+                const auto result=undo ? sls::RemoveCuratedGameFix(root->second,*found)
+                                       : sls::ApplyCuratedGameFix(root->second,*found);
+                if(result==sls::FixResult::Applied)message="Fix applied; original configuration backed up.";
+                else if(result==sls::FixResult::Restored)message="Unfix completed; original restored.";
+                else if(result==sls::FixResult::AlreadyApplied)message="Fix already applied.";
+                else if(result==sls::FixResult::NotApplied)message="Fix was not applied.";
+                else if(result==sls::FixResult::Conflict)message="Unfix stopped: file changed after Apply. Your changes were preserved.";
+                else if(result==sls::FixResult::UnsafePath)message="Fix refused: unverified target or unsafe path.";
+                else if(result==sls::FixResult::TooLarge)message="Fix refused: configuration exceeds the size limit.";
+                else message="Fix failed due to filesystem I/O; original backup was retained if possible.";
+            }
+        }
+        push_notice({"curated-fix-result",message,"",false,0,true});
     }
     else if(action_name=="details-fixes-info") {
         const auto id=state_.navigation.detail_id.value_or(state_.navigation.selected_game_id);
