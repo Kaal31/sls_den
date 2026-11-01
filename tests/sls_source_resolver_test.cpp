@@ -1,5 +1,7 @@
 #include "sls/source_resolver.h"
+#include "sls/provider_discovery.h"
 #include <cassert>
+#include <algorithm>
 #include <string>
 int main() {
   using namespace playden::sls;
@@ -31,4 +33,52 @@ int main() {
     return true;
   });
   assert(!huge.ok && huge.attempts[0].status == "response_too_large");
+  // Provider discovery is transport-independent, so fixture tests exercise the
+  // same selection, credential boundary and fallback logic on Windows and PS5.
+  ProviderSelection selection;
+  auto defaults = ConfiguredSources(selection);
+  assert(defaults.size() == 4); // keyed Morrenus is not sent unauthenticated
+  assert(std::none_of(defaults.begin(), defaults.end(), [](const Source& s) {
+    return s.id == "morrenus";
+  }));
+
+  // A disabled source must never contact the transport.
+  assert(selection.toggle(0));
+  int calls = 0;
+  auto discovered = DiscoverManifestWithCredentials(
+    480, selection,
+    [](std::string_view key, std::string* secret) {
+      if (key != "moapikey") return false;
+      *secret = "fixture-key";
+      return true;
+    },
+    [&](const std::string& provider, const std::string&, std::uint32_t app,
+        std::string_view credential, std::string* payload, std::string*) {
+      ++calls;
+      assert(app == 480 && provider != "ryuu");
+      if (provider == "morrenus") {
+        assert(credential == "fixture-key");
+        *payload = "addappid(100)\\nsetManifestid(100, \\"123456789\\")\\n";
+        return true;
+      }
+      assert(credential.empty());
+      return false;
+    });
+  assert(discovered.ok && discovered.source_id == "morrenus");
+  assert(discovered.metadata.depots.size() == 1);
+  assert(calls == 4);
+  assert(!discovered.attempts.empty() && discovered.attempts.front().status == "disabled");
+
+  // Missing credentials block the keyed source before the fetch callback.
+  int unkeyed_calls = 0;
+  auto missing = DiscoverManifestWithCredentials(
+    480, selection, {},
+    [&](const std::string& provider, const std::string&, std::uint32_t,
+        std::string_view, std::string*, std::string*) {
+      assert(provider != "morrenus");
+      ++unkeyed_calls;
+      return false;
+    });
+  assert(!missing.ok && unkeyed_calls == 3);
+  assert(missing.attempts.back().status == "missing_key");
 }
