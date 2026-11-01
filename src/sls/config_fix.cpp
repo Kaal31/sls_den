@@ -127,11 +127,15 @@ FixResult RestoreConfigFix(const fs::path& root,const fs::path& relative){
   if(!fs::is_regular_file(applied,ec)||ec||fs::is_symlink(applied,ec)||ec)return FixResult::Conflict;
   if(!fs::is_regular_file(target,ec)||ec||fs::is_symlink(target,ec)||ec)return FixResult::Conflict;
   if(fs::file_size(target,ec)>kMaxBytes||ec||fs::file_size(applied,ec)>kMaxBytes||ec)return FixResult::Conflict;
-  std::ifstream actual(target,std::ios::binary),expected(applied,std::ios::binary);
-  if(!actual||!expected)return FixResult::IoError;
-  if(!std::equal(std::istreambuf_iterator<char>(actual),std::istreambuf_iterator<char>(),
-                 std::istreambuf_iterator<char>(expected),std::istreambuf_iterator<char>()))
-     return FixResult::Conflict;
+  // Windows refuses deletion of an applied snapshot still held open here.
+  // Scope input streams so they close before restoration modifies these paths.
+  {
+    std::ifstream actual(target,std::ios::binary),expected(applied,std::ios::binary);
+    if(!actual||!expected)return FixResult::IoError;
+    if(!std::equal(std::istreambuf_iterator<char>(actual),std::istreambuf_iterator<char>(),
+                   std::istreambuf_iterator<char>(expected),std::istreambuf_iterator<char>()))
+       return FixResult::Conflict;
+  }
   if(fs::exists(backup,ec)) {
     if(fs::is_symlink(backup,ec)||ec||!fs::is_regular_file(backup,ec)||ec)return FixResult::UnsafePath;
     // Windows cannot replace an open destination with rename. Stage the
