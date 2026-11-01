@@ -8,6 +8,7 @@
 #include "sls/source_list.h"
 #include "sls/provider_registry.h"
 #include "sls/provider_preferences.h"
+#include "sls/provider_discovery.h"
 #include "sls/credential_adapter.h"
 #include <charconv>
 #include "runtime/game_probe.h"
@@ -5215,6 +5216,10 @@ void Simulation::rebuild_view() {
         // Source names follow SLSDeck defaults/api.json; offline mode shows a local
         // catalogue only and never contacts these endpoints.
         {
+            auto& check = add("settings-sls-probe", RowKind::Action,
+                              "Check fixture manifests","sls-fixture-discovery");
+            check.value=sls_fixture_discovery_status_;
+            check.subtitle="Offline validation of source fallback and manifest metadata; no downloads";
             auto& heading = add("settings-sls-sources", RowKind::Status, "SLS Den · Sources", "");
             heading.subtitle = "SLSDeck source catalogue · offline preview, no network requests";
             for(std::size_t i=0;i<sls::kDefaultProviders.size();++i){
@@ -6532,6 +6537,18 @@ void Simulation::activate() {
         state_.navigation.selected_game_id = selected.game_id;
         state_.navigation.route = Route::Details;
         details_primary_pending_ = live(); state_.navigation.focus_key = live() ? "details-favorite" : (is_installed(state_, selected.game_id) ? "details-play" : "details-install");
+    } else if(action_name == "sls-fixture-discovery") {
+        // Exercise the SAME shared resolver as the host, using deterministic fake transport.
+        // No credentials, network calls or installation requests are made.
+        const auto result=sls::DiscoverManifest(480,sls_sources_,
+            [](const std::string& url,std::string* payload,std::string*) {
+                if(url.find("sushitools-games-repo-alt")==std::string::npos) return false;
+                *payload="addappid(480)\nsetManifestid(480, \"123456789\")\n";
+                return true;
+            });
+        sls_fixture_discovery_status_=result.ok?
+            ("Fixture OK · "+result.source_id+" · "+std::to_string(result.metadata.depots.size())+" depot"):
+            "Fixture unavailable";
     } else if(action_name.rfind("sls-default-toggle-",0)==0) {
         const std::string idx=action_name.substr(19);
         if(idx.size()==1 && idx[0]>='0' && idx[0]<='4'){
