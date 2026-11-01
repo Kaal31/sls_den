@@ -30,7 +30,10 @@ FixResult ApplyConfigFix(const fs::path& root,const fs::path& relative,std::stri
   fs::path target;
   if(!SafePath(root,relative,&target))return FixResult::UnsafePath;
   std::error_code ec;
-  if(fs::is_directory(target,ec)||ec)return FixResult::UnsafePath;
+  const bool target_exists=fs::exists(target,ec);
+  if(ec)return FixResult::IoError;
+  if(target_exists && fs::is_directory(target,ec))return FixResult::UnsafePath;
+  if(ec)return FixResult::IoError;
   const auto backup=fs::path(target.string()+".lua-den-original");
   const auto created=fs::path(target.string()+".lua-den-created");
   if(fs::exists(backup,ec)||fs::exists(created,ec))return FixResult::AlreadyApplied;
