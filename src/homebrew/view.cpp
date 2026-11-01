@@ -1825,6 +1825,22 @@ class Render::Impl
             scene_.pop_transform();
             return;
         }
+        // Compact provenance and Denuvo cover tags. Keep left-side tags below the
+        // install-state badge; the top-right corner is reserved for ProtonDB/Demo.
+        if(current_state_) {
+            const auto app=game.id.steam_app();
+            float tag_y=rect.y+48.0F;
+            const auto draw_tag=[&](std::string_view title,gfx::Color ink) {
+                const float width=std::min(rect.w-20.0F,fonts_.semibold.measure(title,13.0F)+19.0F);
+                scene_.rounded_rect({rect.x+10.0F,tag_y,width,24.0F},5.0F,kBackground.with_alpha(0.92F));
+                ui::text(scene_,fonts_.semibold,title,rect.x+19.0F,tag_y+17.0F,13.0F,ink);
+                tag_y+=29.0F;
+            };
+            if(app && !current_state_->simulation_mode && current_state_->badge_enabled[0])
+                draw_tag("LEGIT",gfx::Color::rgb(0x59C985));
+            if(app && current_state_->badge_enabled[2] && current_state_->denuvo_cover_ids.count(*app))
+                draw_tag("DENUVO",gfx::Color::rgb(0xE66565));
+        }
         // Compact ProtonDB cover icon; independent of focus and not an input target.
         // ProtonDB describes Linux Proton reports, not a PS5 compatibility grade.
         if(current_state_ && current_state_->badge_enabled[4]) {
