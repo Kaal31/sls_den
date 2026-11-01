@@ -1,4 +1,4 @@
-name: SLS Den macOS host validation
+name: Lua Den macOS host validation
 
 on:
   push:
@@ -45,7 +45,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: sls-den-macos-testlogs
+          name: lua-den-macos-testlogs
           path: |
             build/homebrew-host/Testing/Temporary/
             build/homebrew-host/mock-console-state.json
