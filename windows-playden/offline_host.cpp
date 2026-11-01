@@ -224,6 +224,7 @@ int main(int argc,char** argv){
    bool running=true;
    bool first_frame=true;
    SDL_GameController* controller=nullptr;
+   int stick_x=0,stick_y=0;
    auto open_controller=[&](){
      if(controller)return;
      for(int i=0;i<SDL_NumJoysticks();++i)
@@ -246,7 +247,22 @@ int main(int argc,char** argv){
        else if(e.type==SDL_CONTROLLERDEVICEREMOVED){
          if(controller && SDL_JoystickInstanceID(SDL_GameControllerGetJoystick(controller))==e.cdevice.which){
            SDL_GameControllerClose(controller);controller=nullptr;
+           stick_x=stick_y=0;
            open_controller();
+         }
+       }else if(e.type==SDL_CONTROLLERAXISMOTION && controller &&
+                 e.caxis.which==SDL_JoystickInstanceID(SDL_GameControllerGetJoystick(controller))){
+         const auto axis=static_cast<SDL_GameControllerAxis>(e.caxis.axis);
+         if(axis==SDL_CONTROLLER_AXIS_LEFTX || axis==SDL_CONTROLLER_AXIS_LEFTY){
+           // Dead-zone plus edge triggering: one navigation step per tilt,
+           // rather than hundreds of actions per SDL axis event.
+           const int direction=e.caxis.value>16000?1:e.caxis.value< -16000?-1:0;
+           int& previous=axis==SDL_CONTROLLER_AXIS_LEFTX?stick_x:stick_y;
+           if(direction!=previous && direction!=0)
+             simulation.action(axis==SDL_CONTROLLER_AXIS_LEFTX
+                 ?(direction>0?"right":"left")
+                 :(direction>0?"down":"up"));
+           previous=direction;
          }
        }else if(e.type==SDL_CONTROLLERBUTTONDOWN){
          const auto button=static_cast<SDL_GameControllerButton>(e.cbutton.button);
