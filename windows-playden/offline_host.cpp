@@ -160,6 +160,17 @@ int main(int argc,char** argv){
    Log("Packaged renderer font files verified");
  }
  if(options.self_test){
+   // Exercise the same mappings used by live keyboard input.
+   const bool keyboard_mapping=
+      std::string_view(LogicalKey(SDLK_RETURN))=="cross" &&
+      std::string_view(LogicalKey(SDLK_SPACE))=="cross" &&
+      std::string_view(LogicalKey(SDLK_ESCAPE))=="circle" &&
+      std::string_view(LogicalKey(SDLK_UP))=="up";
+   if(!keyboard_mapping){
+     StartupError("Windows keyboard action mapping regression");
+     return 7;
+   }
+   Log("Keyboard action mapping self-test passed");
    auto data=simulation.snapshot();
    if(data.empty()){StartupError("Simulation snapshot was empty");return 3;}
    Log("Simulation self-test passed");
