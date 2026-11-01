@@ -39,6 +39,7 @@
 #include <functional>
 #include <memory>
 #include "homebrew/store_fetch.hpp"
+#include "sls/source_list.h"
 #include <optional>
 #include <string>
 #include <string_view>
