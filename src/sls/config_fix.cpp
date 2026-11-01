@@ -119,9 +119,20 @@ FixResult RestoreConfigFix(const fs::path& root,const fs::path& relative){
      return FixResult::Conflict;
   if(fs::exists(backup,ec)) {
     if(fs::is_symlink(backup,ec)||ec||!fs::is_regular_file(backup,ec)||ec)return FixResult::UnsafePath;
-    fs::remove(target,ec);
+    // Windows cannot replace an open destination with rename. Stage the
+    // applied target first, then roll back if installing the backup fails.
+    const auto staging=fs::path(target.string()+".lua-den-restore-staging");
+    if(fs::exists(staging,ec))return FixResult::Conflict;
+    if(ec)return FixResult::IoError;
+    fs::rename(target,staging,ec);
     if(ec)return FixResult::IoError;
     fs::rename(backup,target,ec);
+    if(ec) {
+      std::error_code recovery;
+      fs::rename(staging,target,recovery);
+      return FixResult::IoError;
+    }
+    fs::remove(staging,ec);
     if(ec)return FixResult::IoError;
     fs::remove(applied,ec);
     return ec?FixResult::IoError:FixResult::Restored;
