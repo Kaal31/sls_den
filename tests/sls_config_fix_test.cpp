@@ -62,6 +62,21 @@ int main(){
  auto upgraded=authorized;upgraded.version="2.0";
  check(playden::sls::InspectConfigFix(root,vetted.relative_path)==FixResult::Applied,"fix remains present after version changes");
  check(playden::sls::RemoveCuratedGameFix(upgraded,vetted)==FixResult::Restored,"Unfix remains available after game update");
+ auto malformed=vetted;
+ malformed.id="../cross-game";
+ check(!playden::sls::ValidCuratedDefinition(malformed),"reject action-key injection");
+ check(playden::sls::ApplyCuratedGameFix(authorized,malformed)==FixResult::UnsafePath,"invalid fix id cannot apply");
+ malformed=vetted;
+ malformed.relative_path="../escape.ini";
+ check(!playden::sls::ValidCuratedDefinition(malformed),"reject traversal metadata");
+ check(playden::sls::CheckGameFixAvailability(authorized,{malformed})==playden::sls::GameFixAvailability::NoDefinitions,
+       "unsafe fix definition not listed");
+ malformed=vetted;
+ malformed.replacement.assign(1024*1024+1,'x');
+ check(!playden::sls::ValidCuratedDefinition(malformed),"reject oversized curated payload");
+ malformed=vetted;
+ malformed.steam_app_id=0;
+ check(!playden::sls::ValidCuratedDefinition(malformed),"reject missing AppID");
  auto no_install=authorized; no_install.installed=false;
  check(playden::sls::ApplyCuratedGameFix(no_install,vetted)==FixResult::UnsafePath,"no catalog-only fix application");
  auto other=authorized; other.app_id=12346;
