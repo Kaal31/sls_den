@@ -255,6 +255,31 @@ int main(int argc,char** argv){
    if(catalog_found==catalog_rows.end()) {
      StartupError("Public Steam catalog result was not shown");return 8;
    }
+   // Adding a public catalog result creates a local registration only. It must
+   // persist across UI restarts without claiming an entitlement or installation.
+   const auto added_test_dir=fs::temp_directory_path()/"lua-den-added-registration-ci";
+   std::error_code added_error;
+   fs::create_directories(added_test_dir,added_error);
+   fs::remove(added_test_dir/"added-games.txt",added_error);
+   simulation.SetSlsSourcePreferencePath(added_test_dir/"sources.ini");
+   if(!simulation.action("focus:steam-catalog-add-620") || !simulation.action("cross")) {
+     StartupError("Public result Add Game action failed");return 8;
+   }
+   {
+     playden::homebrew::Simulation reader(options.fixtures,{},playden::homebrew::ModelMode::Simulation);
+     reader.SetSlsSourcePreferencePath(added_test_dir/"sources.ini");
+     reader.action("route:library");
+     const auto& rows=reader.view().rows;
+     const auto match=std::find_if(rows.begin(),rows.end(),[](const auto& row) {
+       return row.key=="added-game-620" && row.action=="added-game-info" &&
+              row.badge=="ADDED" && row.kind==playden::homebrew::RowKind::Action;
+     });
+     if(match==rows.end()){
+       StartupError("Manually added game failed to survive UI restart without becoming owned");return 8;
+     }
+   }
+   fs::remove_all(added_test_dir,added_error);
+   Log("Manual game registration persistence and ownership isolation passed");
    simulation.action("route:home");
    simulation.action("route:library");
    simulation.action("focus:clear-search");
