@@ -4,6 +4,7 @@
 #include "homebrew/render.hpp"
 #include "homebrew/simulation.hpp"
 #include "sls/provider_preferences.h"
+#include "sls/provider_discovery.h"
 #include "gfx/gl.hpp"
 #include "gfx/gl_program.hpp"
 #define SDL_MAIN_HANDLED
