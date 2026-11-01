@@ -308,6 +308,25 @@ int main(int argc,char** argv){
       StartupError("Fixture manifest discovery did not validate provider fallback");return 8;
    }
    Log("Offline fixture-based source discovery test passed");
+   // Provider diagnostics are shared between Windows and PS5, and never expose keys.
+   const auto before_key=playden::sls::DiagnoseProviders(playden::sls::ProviderSelection{},{});
+   if(before_key.size()!=5 || before_key[4].status!="missing_key" ||
+      before_key[1].status!="ready"){
+      StartupError("Source diagnostics failed missing-key/ready classification");return 8;
+   }
+   playden::sls::ProviderSelection disabled_provider;
+   disabled_provider.toggle(4);
+   const auto after_toggle=playden::sls::DiagnoseProviders(disabled_provider,{"moapikey"});
+   if(after_toggle[4].status!="disabled"){
+      StartupError("Source diagnostics ignored disabled provider");return 8;
+   }
+   disabled_provider.toggle(4);
+   const auto after_credential=playden::sls::DiagnoseProviders(disabled_provider,{"moapikey"});
+   if(after_credential[4].status!="credential_configured"){
+      StartupError("Source diagnostics failed configured-key classification");return 8;
+   }
+   Log("Portable provider diagnostics classification test passed");
+
 
 
 
