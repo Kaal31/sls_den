@@ -5235,6 +5235,12 @@ void Simulation::rebuild_view() {
                 entry.subtitle=diagnostics[i].status+" · "+std::string(sls::kDefaultProviders[i].url_template);
 
             }
+            {
+                auto& row=add("settings-luatools-bot-code",RowKind::Action,
+                              "lua.tools · Enter Discord bot code","luatools-bot-code-edit");
+                row.value="Sign in";
+                row.subtitle="One-time code from the lua.tools Discord bot; not saved as an API key";
+            }
             for(const auto& field:sls::kKeyDefinitions){
                 auto& row=add("settings-sls-key-"+std::string(field.id),RowKind::Action,
                               std::string(field.label),"sls-key-edit-"+std::string(field.id));
@@ -5808,6 +5814,15 @@ void Simulation::submit_fixture_sign_in() {
 }
 
 void Simulation::commit_editor() {
+    if(state_.editor.purpose=="lua.tools bot code"){
+        steam::ZeroizeSecret(state_.editor.value);
+        steam::ZeroizeSecret(state_.editor.original);
+        state_.editor.active=false;
+        state_.editor.secret=false;
+        state_.navigation.focus_key="settings-luatools-bot-code";
+        push_notice({"luatools-redeem-pending","lua.tools code redemption requires an authenticated network host.","",true,0,true});
+        return;
+    }
     if(state_.editor.purpose.rfind("SLS key: ",0)==0){
         const std::string id=state_.editor.purpose.substr(9);
         if(id=="moapikey" || id=="ryuu" || id=="steamweb"){
@@ -6559,6 +6574,8 @@ void Simulation::activate() {
             if(!sls_source_preference_path_.empty())
                 sls::SaveSelection(sls_source_preference_path_,sls_sources_);
         }
+    } else if(action_name=="luatools-bot-code-edit") {
+        start_editor("lua.tools bot code","",true);
     } else if(action_name.rfind("sls-key-edit-",0)==0) {
         const std::string id=action_name.substr(13);
         if(id=="moapikey" || id=="ryuu" || id=="steamweb")
