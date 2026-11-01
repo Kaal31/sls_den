@@ -22,7 +22,8 @@ inline bool SaveSelection(const std::filesystem::path& path,const ProviderSelect
     std::error_code ec;
     std::filesystem::create_directories(path.parent_path(),ec);
     if(ec)return false;
-    const auto tmp=std::filesystem::path(path.string()+".tmp");
+    auto tmp=path;
+    tmp += ".tmp"; // append natively; never round-trip Unicode Windows paths through ANSI
     {
         std::ofstream out(tmp,std::ios::binary|std::ios::trunc);
         if(!out)return false;
