@@ -5250,10 +5250,14 @@ void Simulation::rebuild_view() {
             auto& heading = add("settings-sls-sources", RowKind::Status, "SLS Den · Sources", "");
             heading.subtitle = "SLSDeck source catalogue · offline preview, no network requests";
             for(std::size_t i=0;i<sls_defaults.size();++i){
-                auto& entry=add("settings-sls-default-"+std::to_string(i),RowKind::Status,
-                                sls_defaults[i].first,"");
-                entry.value="Preview";
-                entry.subtitle=sls_defaults[i].second;
+                const std::string id="sls-default-"+std::to_string(i);
+                const bool enabled=!sls_source_disabled_.contains(id);
+                auto& entry=add("settings-sls-default-"+std::to_string(i),RowKind::Action,
+                                sls_defaults[i].first,"sls-default-toggle-"+std::to_string(i));
+                entry.value=enabled?"Enabled":"Disabled";
+                entry.subtitle=std::string(sls_defaults[i].second)+
+                   (i==4 && !HasStoredSlsKey("moapikey")?
+                    " · API key needed":" · Offline fixture mode");
             }
             const std::array<std::pair<const char*,const char*>,3> key_fields{{
                 {"moapikey","Hubcap / Morrenus API key"},
@@ -6564,6 +6568,12 @@ void Simulation::activate() {
         state_.navigation.selected_game_id = selected.game_id;
         state_.navigation.route = Route::Details;
         details_primary_pending_ = live(); state_.navigation.focus_key = live() ? "details-favorite" : (is_installed(state_, selected.game_id) ? "details-play" : "details-install");
+    } else if(action_name.rfind("sls-default-toggle-",0)==0) {
+        const std::string idx=action_name.substr(19);
+        if(idx.size()==1 && idx[0]>='0' && idx[0]<='4'){
+            const std::string id="sls-default-"+idx;
+            if(!sls_source_disabled_.erase(id)) sls_source_disabled_.insert(id);
+        }
     } else if(action_name.rfind("sls-key-edit-",0)==0) {
         const std::string id=action_name.substr(13);
         if(id=="moapikey" || id=="ryuu" || id=="steamweb")
