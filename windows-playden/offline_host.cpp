@@ -158,6 +158,16 @@ int main(int argc,char** argv){
      simulation.action("cross");
      simulation.action("circle");
    }
+   if(!simulation.action("route:library") ||
+      !simulation.action("click:rail-favorites") ||
+      simulation.snapshot().find(R"("scope":"favorites")")==std::string::npos){
+     StartupError("Library rail mouse-action navigation failed");return 8;
+   }
+   if(!simulation.action("click:rail-all") ||
+      simulation.snapshot().find(R"("scope":"all")")==std::string::npos){
+     StartupError("Library rail restore-all navigation failed");return 8;
+   }
+   Log("Library sidebar click action smoke test passed");
    Log("Five-route navigation and cross/circle action smoke test passed");
  }
  if(options.validate_assets){
