@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 #include "homebrew/render.hpp"
 #include "homebrew/simulation.hpp"
+#include "sls/provider_preferences.h"
 #include "gfx/gl.hpp"
 #include "gfx/gl_program.hpp"
 #define SDL_MAIN_HANDLED
@@ -139,6 +140,14 @@ int main(int argc,char** argv){
  // The simulation model takes no real Steam credentials or network transport.
  Log("Constructing Playden simulation");
  playden::homebrew::Simulation simulation(options.fixtures,{},playden::homebrew::ModelMode::Simulation);
+#ifdef _WIN32
+ if(!options.self_test) {
+   if(const wchar_t* appdata=_wgetenv(L"APPDATA"))
+     simulation.SetSlsSourcePreferencePath(fs::path(appdata)/"SLS Den"/"sources.ini");
+   else
+     simulation.SetSlsSourcePreferencePath(startup_log.parent_path()/"sources.ini");
+ }
+#endif
  if(!options.scenario.empty()&&!simulation.scenario(options.scenario)){
    std::fprintf(stderr,"Unknown scenario: %s\n",options.scenario.c_str());
    return 2;
@@ -247,6 +256,17 @@ int main(int argc,char** argv){
      StartupError("Invalid source preference input changed the saved selection");return 8;
    }
    Log("Cross-platform source preference serialization test passed");
+   const auto preference_test=fs::temp_directory_path()/"sls-den-provider-preferences-ci.ini";
+   std::error_code preference_error;
+   fs::remove(preference_test,preference_error);
+   if(!playden::sls::SaveSelection(preference_test,sources) ||
+      !playden::sls::LoadSelection(preference_test,&restored) ||
+      restored.disabled_csv()!=sources.disabled_csv()){
+      StartupError("Provider source preference file round-trip failed");return 8;
+   }
+   fs::remove(preference_test,preference_error);
+   Log("Portable provider preference disk round-trip test passed");
+
 
 
 
