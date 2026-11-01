@@ -27,4 +27,33 @@ int main() {
   assert(!ParseLuatoolsSession(R"({"error":"invalid"})",&session));
   assert(!ParseLuatoolsSession(R"({"session":{"access_token":"a","refresh_token":42}})",&session));
   assert(ParseLuatoolsSession(R"({"access_token":"a"})",&session));
+  LuatoolsSession prior{"previous-access","previous-refresh",100};
+  int refresh_calls=0;
+  LuatoolsSession renewed;
+  assert(RefreshLuatoolsSession(prior,
+    [&](std::string_view url,std::string_view body,std::string* response) {
+      ++refresh_calls;
+      assert(url==kLuatoolsRefreshUrl);
+      assert(body==R"({"refresh_token":"previous-refresh"})");
+      *response=R"({"access_token":"next-access","refresh_token":"rotated-refresh","expires_in":3600})";
+      return true;
+    },&renewed));
+  assert(refresh_calls==1 && renewed.access_token=="next-access");
+  assert(renewed.refresh_token=="rotated-refresh" && renewed.expires_in==3600);
+  assert(RefreshLuatoolsSession(prior,
+    [&](std::string_view,std::string_view,std::string* response) {
+      *response=R"({"access_token":"new-access"})";
+      return true;
+    },&renewed));
+  assert(renewed.refresh_token=="previous-refresh");
+  assert(!RefreshLuatoolsSession(LuatoolsSession{"access","",100},
+    [&](std::string_view,std::string_view,std::string*){++refresh_calls;return true;},&renewed));
+  assert(refresh_calls==1);
+  assert(!RefreshLuatoolsSession(prior,
+    [&](std::string_view,std::string_view,std::string* response) {
+      *response=R"({"error":"expired refresh token"})";
+      return true;
+    },&renewed));
+  assert(renewed.access_token=="new-access");
+
 }
