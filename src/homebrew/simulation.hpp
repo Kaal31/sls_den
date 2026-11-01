@@ -727,6 +727,7 @@ public:
     void UpdateSteamCatalogResults(std::string query,sls::SteamCatalogPage page);
     void FailSteamCatalogSearch(std::string query);
     void SetDenuvoKnown(std::set<std::uint32_t> appids);
+    void SetProtonDbRatings(std::map<std::uint32_t,std::string> ratings);
     bool scenario(const std::string& name);
     void SetMockSourceStatus(std::string status);
     bool action(const std::string& logical_action);
@@ -905,6 +906,7 @@ private:
     std::string catalog_search_query_;
     sls::SteamCatalogPage catalog_search_results_;
     std::set<std::uint32_t> denuvo_known_;
+    std::map<std::uint32_t,std::string> protondb_ratings_;
     std::size_t catalog_display_page_ = 0;
     sls::ProviderSelection sls_sources_; // Shared provider toggle model, no network activity.
     std::filesystem::path sls_source_preference_path_;
