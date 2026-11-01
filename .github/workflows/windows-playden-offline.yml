@@ -76,7 +76,7 @@ jobs:
           Get-ChildItem "C:\vcpkg\installed\x64-windows\bin" -Filter "*.dll" |
             Copy-Item -Destination windows-playden/offline-dist
           @"
-          SLS Den Windows - real Playden offline UI (simulation only).
+          Lua Den Windows - real Playden offline UI (simulation only).
           Extract the ENTIRE archive; keep the DLLs, homebrew-assets and fixtures beside the exe.
           Double-click playden-windows-offline.exe. If the window closes, look for:
             sls-den-startup.log in the same folder as the .exe
