@@ -9,6 +9,7 @@
 #include <cstdint>
 #include <memory>
 #include <string>
+#include <optional>
 
 namespace playden::homebrew
 {
@@ -42,6 +43,8 @@ class Render final
     void draw(Simulation &simulation, int width, int height, float dt = 1.0F / 60.0F);
     bool capture_png(const std::filesystem::path &path, int width, int height) const;
     [[nodiscard]] RenderStats diagnostics() const noexcept;
+    // Returns the topmost control action from the last rendered frame.
+    [[nodiscard]] std::optional<std::string> hit_test(float x, float y) const;
 
   private:
     class Impl;
