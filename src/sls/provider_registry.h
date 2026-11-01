@@ -37,6 +37,31 @@ public:
         return index<kDefaultProviders.size() &&
                !disabled_.contains(std::string(kDefaultProviders[index].id));
     }
+    std::string disabled_csv() const {
+        std::string result;
+        for(const auto& id:disabled_){
+            if(!result.empty()) result += ",";
+            result += id;
+        }
+        return result;
+    }
+    bool load_disabled_csv(std::string_view csv) {
+        std::set<std::string> next;
+        std::size_t pos=0;
+        while(pos<csv.size()){
+            const auto end=csv.find(',',pos);
+            const auto part=csv.substr(pos,end==std::string_view::npos?csv.size()-pos:end-pos);
+            bool found=false;
+            for(const auto& provider:kDefaultProviders)
+                if(provider.id==part){found=true;break;}
+            if(!found)return false;
+            next.insert(std::string(part));
+            if(end==std::string_view::npos)break;
+            pos=end+1;
+        }
+        disabled_=std::move(next);
+        return true;
+    }
     bool toggle(std::size_t index) {
         if(index>=kDefaultProviders.size()) return false;
         const std::string id(kDefaultProviders[index].id);
