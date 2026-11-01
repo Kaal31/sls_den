@@ -1,7 +1,8 @@
 #include "sls/steam_catalog_worker.h"
 #include <utility>
+#include <chrono>
 namespace playden::sls {
-SteamCatalogWorker::SteamCatalogWorker(std::string ca):ca_(std::move(ca)),thread_([this]{Run();}){}
+SteamCatalogWorker::SteamCatalogWorker(std::string ca):ca_(std::move(ca)) {thread_=std::thread([this]{Run();});}
 SteamCatalogWorker::~SteamCatalogWorker(){stop_=true;if(thread_.joinable())thread_.join();}
 void SteamCatalogWorker::Search(std::string query) {
   if(SteamStoreSearchUrl(query).empty())return;
