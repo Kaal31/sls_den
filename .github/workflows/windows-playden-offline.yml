@@ -76,6 +76,11 @@ jobs:
             } finally {
               if (Test-Path $out) { Get-Content $out }
               if (Test-Path $err) { Get-Content $err }
+              $startup = Join-Path (Split-Path $exe -Parent) "sls-den-startup.log"
+              if (Test-Path $startup) {
+                Write-Host "Last 60 startup log lines for $label"
+                Get-Content $startup -Tail 60
+              }
               Write-Host "::endgroup::"
             }
             Write-Host "PASS: $label"
