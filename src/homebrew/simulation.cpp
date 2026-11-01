@@ -4760,7 +4760,7 @@ void Simulation::rebuild_view() {
         if (!state_.library.query.empty()) {
             auto& discover = row("library-store-search",RowKind::Action,
                                  "Search Steam Store for: "+state_.library.query,"steam-catalog-search");
-            discover.subtitle = catalog_search_status_.empty() ? "Public catalog · includes unowned titles" : catalog_search_status_;
+            discover.subtitle = (catalog_search_query_==state_.library.query && !catalog_search_status_.empty()) ? catalog_search_status_ : "Public catalog · includes unowned titles";
         }
         // Public results are actions, not Game rows; no implied ownership, installation or Play action.
         if(catalog_search_query_==state_.library.query && !catalog_search_results_.titles.empty()) {
@@ -6569,7 +6569,14 @@ void Simulation::activate() {
         }
     }
     else if (action_name == "steam-catalog-info") {
-        push_notice({"steam-catalog-preview","This is a public Steam catalog result; no ownership or install rights are implied.","",false,0,true});
+        const auto prefix=std::string("steam-catalog-");
+        if(selected.key.rfind(prefix,0)==0 && catalog_search_query_==state_.library.query) {
+            const auto id=selected.key.substr(prefix.size());
+            const auto hit=std::find_if(catalog_search_results_.titles.begin(),catalog_search_results_.titles.end(),
+                [&](const sls::SteamCatalogTitle& title){return std::to_string(title.app_id)==id;});
+            if(hit!=catalog_search_results_.titles.end())
+                push_notice({"steam-catalog-preview",hit->name+" · Steam App ID "+id+" · Public catalog entry; ownership not verified.","",false,0,true});
+        }
     }
     else if (action_name == "clear-search") { state_.library.query.clear(); reconcile_library_selection(state_); }
     else if (action_name == "library-show-all") { state_.library.scope = "all"; reconcile_library_selection(state_); save_profile(); }
