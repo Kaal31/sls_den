@@ -306,7 +306,7 @@ int main(int argc,char** argv){
    simulation.action("route:home");
    simulation.action("route:library");
    auto game_row=std::find_if(simulation.view().rows.begin(),simulation.view().rows.end(),
-     [](const auto& row){return row.kind==playden::homebrew::RowKind::Game;});
+     [](const auto& row){return row.kind==playden::homebrew::RowKind::Game && row.game_id.steam_app().has_value();});
    if(game_row!=simulation.view().rows.end()) {
      const std::string focus=game_row->key;
      if(!simulation.action("focus:"+focus) || !simulation.action("cross")) {
