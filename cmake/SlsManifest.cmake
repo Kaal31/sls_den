@@ -1,6 +1,6 @@
 add_library(sls_manifest STATIC "${CMAKE_SOURCE_DIR}/src/sls/manifest_metadata.cpp")
 target_sources(sls_manifest PRIVATE "${CMAKE_SOURCE_DIR}/src/sls/source_catalog.cpp" "${CMAKE_SOURCE_DIR}/src/sls/source_resolver.cpp")
-target_sources(sls_manifest PRIVATE "${CMAKE_SOURCE_DIR}/src/sls/source_list.cpp")
+target_sources(sls_manifest PRIVATE "${CMAKE_SOURCE_DIR}/src/sls/source_list.cpp" "${CMAKE_SOURCE_DIR}/src/sls/steam_catalog_search.cpp")
 target_include_directories(sls_manifest PUBLIC "${CMAKE_SOURCE_DIR}/src")
 target_compile_features(sls_manifest PUBLIC cxx_std_17)
 target_link_libraries(playden_preferences PUBLIC sls_manifest)
