@@ -14,10 +14,14 @@ int main() {
   auto fetch = [&](const std::string& url, std::string* payload, std::string* error) {
     ++requests;
     if (url.find("first.example") != std::string::npos) {
-      *payload = "invalid";
+    *payload = R"(addappid(480)
+setManifestid(480, "123456789")
+)";
       return true;
     }
-        *payload = R"(addappid(480)\nsetManifestid(480, "123456789")\n)";
+    *payload = R"(addappid(480)
+setManifestid(480, "123456789")
+)";
     return true;
   };
   auto r = ResolveManifest(480, sources, fetch);
@@ -58,7 +62,9 @@ int main() {
       assert(app == 480 && provider != "ryuu");
       if (provider == "morrenus") {
         assert(credential == "fixture-key");
-        *payload = "addappid(100)\\nsetManifestid(100, \\"123456789\\")\\n";
+    *payload = R"(addappid(480)
+setManifestid(480, "123456789")
+)";
         return true;
       }
       assert(credential.empty());
