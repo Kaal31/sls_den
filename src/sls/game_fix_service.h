@@ -30,7 +30,8 @@ struct VerifiedGameRoot {
 inline GameFixAvailability CheckGameFixAvailability(
     const VerifiedGameRoot& game, const std::vector<CuratedConfigFix>& definitions) {
     if (!game.installed || game.root.empty()) return GameFixAvailability::NotInstalled;
-    if (!game.volume_available || !std::filesystem::is_directory(game.root))
+    std::error_code ec;
+    if (!game.volume_available || !std::filesystem::is_directory(game.root,ec) || ec)
         return GameFixAvailability::StorageUnavailable;
     if (!game.runtime_supported) return GameFixAvailability::RuntimeUnsupported;
     bool found = false;
@@ -52,9 +53,10 @@ inline FixResult ApplyCuratedGameFix(const VerifiedGameRoot& game,
 }
 inline FixResult RemoveCuratedGameFix(const VerifiedGameRoot& game,
                                       const CuratedConfigFix& def) {
+    std::error_code ec;
     if (def.steam_app_id != game.app_id || def.id.empty() ||
         !game.installed || !game.volume_available || !game.runtime_supported ||
-        game.root.empty() || !std::filesystem::is_directory(game.root))
+        game.root.empty() || !std::filesystem::is_directory(game.root,ec) || ec)
         return FixResult::UnsafePath;
     return RestoreConfigFix(game.root, def.relative_path);
 }
