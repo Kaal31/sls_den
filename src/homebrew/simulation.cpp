@@ -6,6 +6,8 @@
 #include "homebrew/simulation.hpp"
 #include "sls/source_catalog.h"
 #include "sls/source_list.h"
+#include "sls/provider_registry.h"
+#include "sls/credential_adapter.h"
 #include <charconv>
 #include "runtime/game_probe.h"
 
@@ -50,44 +52,7 @@
 
 namespace playden::homebrew {
 
-namespace {
-// Provider credential identity deliberately contains no URL or secret.
-bool ValidSlsKeyId(const std::string& id) {
-    return id=="moapikey" || id=="ryuu" || id=="steamweb";
-}
-#ifdef _WIN32
-std::wstring SlsCredentialTarget(const std::string& id) {
-    return L"SLS Den/SourceKey/" + std::wstring(id.begin(), id.end());
-}
-bool HasStoredSlsKey(const std::string& id) {
-    if(!ValidSlsKeyId(id)) return false;
-    PCREDENTIALW credential=nullptr;
-    const auto target=SlsCredentialTarget(id);
-    const bool found=CredReadW(target.c_str(),CRED_TYPE_GENERIC,0,&credential)!=FALSE;
-    const bool present=found && credential && credential->CredentialBlobSize>0;
-    if(credential) CredFree(credential);
-    return present;
-}
-bool StoreSlsKey(const std::string& id,const std::string& value) {
-    if(!ValidSlsKeyId(id) || value.size()>2048) return false;
-    const auto target=SlsCredentialTarget(id);
-    if(value.empty()) {
-        return CredDeleteW(target.c_str(),CRED_TYPE_GENERIC,0)!=FALSE ||
-            GetLastError()==ERROR_NOT_FOUND;
-    }
-    CREDENTIALW credential{};
-    credential.Type=CRED_TYPE_GENERIC;
-    credential.TargetName=const_cast<wchar_t*>(target.c_str());
-    credential.CredentialBlobSize=static_cast<DWORD>(value.size());
-    credential.CredentialBlob=reinterpret_cast<LPBYTE>(const_cast<char*>(value.data()));
-    credential.Persist=CRED_PERSIST_LOCAL_MACHINE;
-    return CredWriteW(&credential,0)!=FALSE;
-}
-#else
-bool HasStoredSlsKey(const std::string&) {return false;}
-bool StoreSlsKey(const std::string&,const std::string&) {return false;}
-#endif
-}
+
 std::string FormatDownloadRate(std::optional<std::uint64_t> rate, std::optional<int> eta) {
     if (!rate) return "—";
     char text[64];
@@ -5240,34 +5205,22 @@ void Simulation::rebuild_view() {
         // Source names follow SLSDeck defaults/api.json; offline mode shows a local
         // catalogue only and never contacts these endpoints.
         {
-            const std::array<std::pair<const char*,const char*>,5> sls_defaults{{
-                {"Ryuu","https://generator.ryuu.lol/api/download/{appid}?file_type=manifest"},
-                {"Sushi","https://raw.githubusercontent.com/sushi-dev55-alt/sushitools-games-repo-alt/refs/heads/main/{appid}.zip"},
-                {"Sushi CDN Mirror","https://cdn.jsdelivr.net/gh/sushi-dev55-alt/sushitools-games-repo-alt@main/{appid}.zip"},
-                {"TwentyTwo Cloud","https://api.twentytwocloud.com/download?appid={appid}"},
-                {"Morrenus","https://hubcapmanifest.com/api/v1/manifest/{appid}?api_key=<moapikey>"}
-            }};
             auto& heading = add("settings-sls-sources", RowKind::Status, "SLS Den · Sources", "");
             heading.subtitle = "SLSDeck source catalogue · offline preview, no network requests";
-            for(std::size_t i=0;i<sls_defaults.size();++i){
+            for(std::size_t i=0;i<sls::kDefaultProviders.size();++i){
                 const std::string id="sls-default-"+std::to_string(i);
                 const bool enabled=!sls_source_disabled_.contains(id);
                 auto& entry=add("settings-sls-default-"+std::to_string(i),RowKind::Action,
-                                sls_defaults[i].first,"sls-default-toggle-"+std::to_string(i));
+                                sls::kDefaultProviders[i].name,"sls-default-toggle-"+std::to_string(i));
                 entry.value=enabled?"Enabled":"Disabled";
-                entry.subtitle=std::string(sls_defaults[i].second)+
-                   (i==4 && !HasStoredSlsKey("moapikey")?
+                entry.subtitle=std::string(sls::kDefaultProviders[i].url_template)+
+                   (i==4 && !sls::HasStoredKey("moapikey")?
                     " · API key needed":" · Offline fixture mode");
             }
-            const std::array<std::pair<const char*,const char*>,3> key_fields{{
-                {"moapikey","Hubcap / Morrenus API key"},
-                {"ryuu","Ryuu API key"},
-                {"steamweb","Steam Web API key"}
-            }};
-            for(const auto& field:key_fields){
-                auto& row=add("settings-sls-key-"+std::string(field.first),RowKind::Action,
-                              field.second,"sls-key-edit-"+std::string(field.first));
-                row.value=(sls_preview_keys_.count(field.first) || HasStoredSlsKey(field.first))?"Configured":"Not set";
+            for(const auto& field:sls::kKeyDefinitions){
+                auto& row=add("settings-sls-key-"+std::string(field.id),RowKind::Action,
+                              field.label,"sls-key-edit-"+std::string(field.id));
+                row.value=(sls_preview_keys_.count(field.id) || sls::HasStoredKey(field.id))?"Configured":"Not set";
                 row.subtitle="Masked credential in Windows Credential Manager; excluded from profiles and logs";
             }
         }
@@ -5840,7 +5793,7 @@ void Simulation::commit_editor() {
     if(state_.editor.purpose.rfind("SLS key: ",0)==0){
         const std::string id=state_.editor.purpose.substr(9);
         if(id=="moapikey" || id=="ryuu" || id=="steamweb"){
-            const bool saved=StoreSlsKey(id,state_.editor.value);
+            const bool saved=sls::StoreKey(id,state_.editor.value);
             if(!saved) push_notice({"sls-key-store-failed","Could not save API key in Windows Credential Manager.","",true,0,true});
             auto& existing=sls_preview_keys_[id];
             steam::ZeroizeSecret(existing);
