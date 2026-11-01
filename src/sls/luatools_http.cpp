@@ -7,12 +7,8 @@ constexpr const char* kSupabaseAnon=
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9."
   "eyJpYXQiOjE3NzYwMzkzNzYsImV4cCI6MTg5MzQ1NjAwMCwicm9sZSI6ImFub24iLCJpc3MiOiJzdXBhYmFzZSJ9."
   "f_-K38u3odjltP-g_67FVmG32Vg-_-k-lNBvIaVUVBM";
-}
-bool RedeemLuatoolsViaHttp(steam::HttpClient& http,const std::atomic<bool>& cancel,
-                            std::string_view bot_code,LuatoolsSession* session) {
-  if(cancel.load() || !session)return false;
-  return RedeemLuatoolsCode(bot_code,
-    [&](std::string_view url,std::string_view body,std::string* response) {
+LuatoolsPost MakeAuthenticatedPost(steam::HttpClient& http,const std::atomic<bool>& cancel) {
+  return [&](std::string_view url,std::string_view body,std::string* response) {
       if(cancel.load() || !response)return false;
       steam::HttpRequest request;
       request.method=steam::HttpMethod::kPost;
@@ -33,6 +29,17 @@ bool RedeemLuatoolsViaHttp(steam::HttpClient& http,const std::atomic<bool>& canc
       response->assign(reinterpret_cast<const char*>(result.body.data()),result.body.size());
       std::fill(result.body.begin(),result.body.end(),0);
       return true;
-    },session);
+    };
+}
+}
+bool RedeemLuatoolsViaHttp(steam::HttpClient& http,const std::atomic<bool>& cancel,
+                            std::string_view bot_code,LuatoolsSession* session) {
+  if(cancel.load() || !session)return false;
+  return RedeemLuatoolsCode(bot_code,MakeAuthenticatedPost(http,cancel),session);;
+}
+bool RefreshLuatoolsViaHttp(steam::HttpClient& http,const std::atomic<bool>& cancel,
+                           const LuatoolsSession& prior,LuatoolsSession* renewed) {
+  if(cancel.load() || !renewed)return false;
+  return RefreshLuatoolsSession(prior,MakeAuthenticatedPost(http,cancel),renewed);
 }
 }
