@@ -22,11 +22,10 @@ inline constexpr std::array<ProviderDefinition,5> kDefaultProviders{{
     {"morrenus","Morrenus","https://hubcapmanifest.com/api/v1/manifest/{appid}?api_key=<moapikey>","moapikey"}
 }};
 struct KeyDefinition { std::string_view id; std::string_view label; };
-inline constexpr std::array<KeyDefinition,4> kKeyDefinitions{{
+inline constexpr std::array<KeyDefinition,3> kKeyDefinitions{{
     {"moapikey","Hubcap / Morrenus API key"},
     {"ryuu","Ryuu API key"},
-    {"steamweb","Steam Web API key"},
-    {"luatools-access","lua.tools session access token"}
+    {"steamweb","Steam Web API key"}
 }};
 inline bool ValidKeyId(std::string_view id) {
     for(const auto& field:kKeyDefinitions) if(field.id==id) return true;
