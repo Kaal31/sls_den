@@ -168,6 +168,19 @@ int main(int argc,char** argv){
      StartupError("Library rail restore-all navigation failed");return 8;
    }
    Log("Library sidebar click action smoke test passed");
+   // The renderer's game-card click action is the simulation's details:<id>.
+   // Verify details opening, cancellation, and modal-safe return state.
+   if(!simulation.action("route:library") ||
+      !simulation.action("details:900001") ||
+      simulation.snapshot().find(R"("route":"details")")==std::string::npos){
+     StartupError("Game-card details navigation failed");return 8;
+   }
+   simulation.action("circle");
+   if(simulation.snapshot().find(R"("route":"library")")==std::string::npos){
+     StartupError("Details back navigation did not restore Library");return 8;
+   }
+   Log("Game-card details and back navigation test passed");
+
    Log("Five-route navigation and cross/circle action smoke test passed");
  }
  if(options.validate_assets){
