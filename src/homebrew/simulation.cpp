@@ -29,6 +29,9 @@
 #include <unistd.h>
 #else
 #include <io.h>
+#include <windows.h>
+#include <wincred.h>
+#pragma comment(lib, "Advapi32.lib")
 #endif
 #include <cstdio>
 #include <cstdlib>
@@ -40,6 +43,45 @@
 #include <type_traits>
 
 namespace playden::homebrew {
+
+namespace {
+// Provider credential identity deliberately contains no URL or secret.
+bool ValidSlsKeyId(const std::string& id) {
+    return id=="moapikey" || id=="ryuu" || id=="steamweb";
+}
+#ifdef _WIN32
+std::wstring SlsCredentialTarget(const std::string& id) {
+    return L"SLS Den/SourceKey/" + std::wstring(id.begin(), id.end());
+}
+bool HasStoredSlsKey(const std::string& id) {
+    if(!ValidSlsKeyId(id)) return false;
+    PCREDENTIALW credential=nullptr;
+    const auto target=SlsCredentialTarget(id);
+    const bool found=CredReadW(target.c_str(),CRED_TYPE_GENERIC,0,&credential)!=FALSE;
+    const bool present=found && credential && credential->CredentialBlobSize>0;
+    if(credential) CredFree(credential);
+    return present;
+}
+bool StoreSlsKey(const std::string& id,const std::string& value) {
+    if(!ValidSlsKeyId(id) || value.size()>2048) return false;
+    const auto target=SlsCredentialTarget(id);
+    if(value.empty()) {
+        return CredDeleteW(target.c_str(),CRED_TYPE_GENERIC,0)!=FALSE ||
+            GetLastError()==ERROR_NOT_FOUND;
+    }
+    CREDENTIALW credential{};
+    credential.Type=CRED_TYPE_GENERIC;
+    credential.TargetName=const_cast<wchar_t*>(target.c_str());
+    credential.CredentialBlobSize=static_cast<DWORD>(value.size());
+    credential.CredentialBlob=reinterpret_cast<LPBYTE>(const_cast<char*>(value.data()));
+    credential.Persist=CRED_PERSIST_LOCAL_MACHINE;
+    return CredWriteW(&credential,0)!=FALSE;
+}
+#else
+bool HasStoredSlsKey(const std::string&) {return false;}
+bool StoreSlsKey(const std::string&,const std::string&) {return false;}
+#endif
+}
 std::string FormatDownloadRate(std::optional<std::uint64_t> rate, std::optional<int> eta) {
     if (!rate) return "—";
     char text[64];
@@ -5215,8 +5257,8 @@ void Simulation::rebuild_view() {
             for(const auto& field:key_fields){
                 auto& row=add("settings-sls-key-"+std::string(field.first),RowKind::Action,
                               field.second,"sls-key-edit-"+std::string(field.first));
-                row.value=sls_preview_keys_.count(field.first)?"Set (session)":"Not set";
-                row.subtitle="Masked session-only credential; no key is included in the profile or logs";
+                row.value=(sls_preview_keys_.count(field.first) || HasStoredSlsKey(field.first))?"Configured":"Not set";
+                row.subtitle="Masked credential in Windows Credential Manager; excluded from profiles and logs";
             }
         }
         if (live()) {
@@ -5788,9 +5830,13 @@ void Simulation::commit_editor() {
     if(state_.editor.purpose.rfind("SLS key: ",0)==0){
         const std::string id=state_.editor.purpose.substr(9);
         if(id=="moapikey" || id=="ryuu" || id=="steamweb"){
+            const bool saved=StoreSlsKey(id,state_.editor.value);
+            if(!saved) push_notice({"sls-key-store-failed","Could not save API key in Windows Credential Manager.","",true,0,true});
             auto& existing=sls_preview_keys_[id];
             steam::ZeroizeSecret(existing);
-            existing=state_.editor.value;
+            // Do not retain the credential in the simulation model after persisting.
+            if(saved && !state_.editor.value.empty()) existing="configured";
+            else existing.clear();
             steam::ZeroizeSecret(state_.editor.value);
             steam::ZeroizeSecret(state_.editor.original);
             state_.editor.active=false;
