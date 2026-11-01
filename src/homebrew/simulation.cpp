@@ -4759,7 +4759,7 @@ void Simulation::rebuild_view() {
             // A future SLS-added Steam app must carry explicit registration provenance;
             // never label an app LEGIT based on its numeric Steam app ID alone.
             // Live Steam catalog entries come from the signed-in account's entitlement
-            // library. An SLS-added Steam app must be recorded independently before
+            // library. An ADDED Steam app must be recorded independently before
             // it can enter this catalogue, or it could be mislabelled as legitimate.
             // Non-Steam/imported games deliberately have no provenance badge.
             item.badge = game->id.store == Store::kSteam ? (live() ? "LEGIT" : "STEAM") : "";
