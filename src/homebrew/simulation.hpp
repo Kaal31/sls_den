@@ -722,8 +722,6 @@ public:
                ModelMode mode = ModelMode::Simulation);
 
     void SetSlsSourcePreferencePath(std::filesystem::path path);
-    // One-time code is passed to a platform auth host; never serialized.
-    [[nodiscard]] std::optional<std::string> TakeLuatoolsBotCode();
     bool scenario(const std::string& name);
     void SetMockSourceStatus(std::string status);
     bool action(const std::string& logical_action);
@@ -897,7 +895,6 @@ private:
     State state_;
     // Session-only credentials for the offline preview; never part of saved profiles or snapshots.
     std::map<std::string, std::string> sls_preview_keys_;
-    std::optional<std::string> pending_luatools_bot_code_;
     sls::ProviderSelection sls_sources_; // Shared provider toggle model, no network activity.
     std::filesystem::path sls_source_preference_path_;
     std::string sls_fixture_discovery_status_ = "Not checked";
