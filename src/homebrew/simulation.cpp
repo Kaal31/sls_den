@@ -10,6 +10,7 @@
 #include "sls/provider_preferences.h"
 #include "sls/provider_discovery.h"
 #include "sls/credential_adapter.h"
+#include "sls/luatools_auth.h"
 #include <charconv>
 #include "runtime/game_probe.h"
 
@@ -806,6 +807,12 @@ Simulation::Simulation(std::filesystem::path fixture_directory, std::filesystem:
     scenario("default");
     load_profile();
     rebuild_view();
+}
+
+std::optional<std::string> Simulation::TakeLuatoolsBotCode() {
+    auto code=std::move(pending_luatools_bot_code_);
+    pending_luatools_bot_code_.reset();
+    return code;
 }
 
 void Simulation::SetSlsSourcePreferencePath(std::filesystem::path path) {
@@ -5815,12 +5822,19 @@ void Simulation::submit_fixture_sign_in() {
 
 void Simulation::commit_editor() {
     if(state_.editor.purpose=="lua.tools bot code"){
+        const std::string code=trimmed(state_.editor.value);
+        if(!sls::ValidBotCode(code)) {
+            push_notice({"luatools-invalid-code","Enter a valid lua.tools Discord bot code.","",true,0,true});
+            return;
+        }
+        if(pending_luatools_bot_code_)steam::ZeroizeSecret(*pending_luatools_bot_code_);
+        pending_luatools_bot_code_=code;
         steam::ZeroizeSecret(state_.editor.value);
         steam::ZeroizeSecret(state_.editor.original);
         state_.editor.active=false;
         state_.editor.secret=false;
         state_.navigation.focus_key="settings-luatools-bot-code";
-        push_notice({"luatools-redeem-pending","lua.tools code redemption requires an authenticated network host.","",true,0,true});
+        push_notice({"luatools-code-pending","lua.tools code handed to the authentication host; no session is confirmed yet.","",false,0,true});
         return;
     }
     if(state_.editor.purpose.rfind("SLS key: ",0)==0){
