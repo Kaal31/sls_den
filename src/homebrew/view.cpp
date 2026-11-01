@@ -1840,6 +1840,8 @@ class Render::Impl
                 draw_tag("LEGIT",gfx::Color::rgb(0x59C985));
             if(app && current_state_->badge_enabled[2] && current_state_->denuvo_cover_ids.count(*app))
                 draw_tag("DENUVO",gfx::Color::rgb(0xE66565));
+            if(app && current_state_->badge_enabled[3] && current_state_->fixed_cover_ids.count(*app))
+                draw_tag("FIXED",gfx::Color::rgb(0x59C985));
         }
         // Compact ProtonDB cover icon; independent of focus and not an input target.
         // ProtonDB describes Linux Proton reports, not a PS5 compatibility grade.
