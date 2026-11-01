@@ -354,6 +354,9 @@ int main(int argc,char** argv){
          return std::string(std::istreambuf_iterator<char>(in),std::istreambuf_iterator<char>());
        };
        if(read_config()!="original=2\n"){StartupError("UI Apply did not replace configuration");return 8;}
+       if(!simulation.state().fixed_cover_ids.count(*app)){
+         StartupError("FIXED badge state did not follow applied disk contents");return 8;
+       }
        // A changed file must survive Unfix with the original backup intact.
        {std::ofstream edited(target,std::ios::binary|std::ios::trunc);edited<<"user-edit=1\n";}
        if(!simulation.action("focus:fix-undo-fixture-graphics")||!simulation.action("cross") ||
@@ -367,6 +370,9 @@ int main(int argc,char** argv){
        if(!simulation.action("focus:fix-undo-fixture-graphics")||!simulation.action("cross")||
           read_config()!="original=1\n"){
          StartupError("UI Unfix did not restore original configuration");return 8;
+       }
+       if(simulation.state().fixed_cover_ids.count(*app)){
+         StartupError("FIXED badge remained active after Unfix");return 8;
        }
        if(fs::exists(target.string()+".lua-den-original")||
           fs::exists(target.string()+".lua-den-applied")){
