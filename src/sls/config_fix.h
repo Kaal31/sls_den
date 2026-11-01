@@ -6,7 +6,7 @@
 #include <string_view>
 namespace playden::sls {
 enum class FixResult { Applied, Restored, AlreadyApplied, NotApplied, UnsafePath,
-                       TooLarge, IoError };
+                       TooLarge, Conflict, IoError };
 FixResult ApplyConfigFix(const std::filesystem::path& game_root,
                          const std::filesystem::path& relative,
                          std::string_view replacement);
