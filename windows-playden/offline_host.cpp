@@ -326,6 +326,49 @@ int main(int argc,char** argv){
       StartupError("Source diagnostics failed configured-key classification");return 8;
    }
    Log("Portable provider diagnostics classification test passed");
+   // Credential-aware discovery must keep keys separate from URL templates.
+   // All transport results here are synthetic; no network traffic is permitted.
+   playden::sls::ProviderSelection only_morrenus;
+   for(std::size_t i=0;i<4;++i)only_morrenus.toggle(i);
+   constexpr const char* fixture_key="fixture-morrenus-secret-not-for-logs";
+   int credential_requests=0;
+   auto keyed_fetch=[&](const std::string& provider,const std::string& url,
+                        std::uint32_t appid,std::string_view credential,
+                        std::string* payload,std::string*){
+      ++credential_requests;
+      if(provider!="morrenus" || appid!=480 ||
+         url.find("<moapikey>")==std::string::npos ||
+         credential!=fixture_key) return false;
+      *payload="addappid(480)\\nsetManifestid(480, \\"123456789\\")\\n";
+      return true;
+   };
+   auto missing_key_resolution=playden::sls::DiscoverManifestWithCredentials(
+       480,only_morrenus,{},keyed_fetch);
+   if(missing_key_resolution.ok || credential_requests!=0 ||
+      missing_key_resolution.attempts.back().status!="missing_key"){
+      StartupError("Credential-less source was incorrectly fetched");return 8;
+   }
+   auto resolution=playden::sls::DiscoverManifestWithCredentials(
+       480,only_morrenus,
+       [](std::string_view key,std::string* out){
+          if(key!="moapikey")return false;
+          *out="fixture-morrenus-secret-not-for-logs";
+          return true;
+       },keyed_fetch);
+   if(!resolution.ok || resolution.source_id!="morrenus" ||
+      resolution.metadata.depots.size()!=1 || credential_requests!=1){
+      StartupError("Credential-aware fixture resolution failed");return 8;
+   }
+   auto invalid_payload=playden::sls::DiscoverManifestWithCredentials(
+       480,only_morrenus,
+       [](std::string_view,std::string* out){*out="some-fixture-key";return true;},
+       [](const std::string&,const std::string&,std::uint32_t,std::string_view,
+          std::string* payload,std::string*){*payload="not a manifest";return true;});
+   if(invalid_payload.ok || invalid_payload.attempts.back().status!="invalid_manifest"){
+      StartupError("Invalid manifest wasn't rejected by credential resolver");return 8;
+   }
+   Log("Credential-aware manifest resolver fixture tests passed");
+
 
 
 
