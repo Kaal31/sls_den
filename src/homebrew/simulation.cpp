@@ -808,12 +808,6 @@ Simulation::Simulation(std::filesystem::path fixture_directory, std::filesystem:
     rebuild_view();
 }
 
-std::optional<std::string> Simulation::TakeLuatoolsBotCode() {
-    auto code=std::move(pending_luatools_bot_code_);
-    pending_luatools_bot_code_.reset();
-    return code;
-}
-
 void Simulation::SetSlsSourcePreferencePath(std::filesystem::path path) {
     sls_source_preference_path_=std::move(path);
     if(!sls_source_preference_path_.empty()) {
@@ -6567,7 +6561,7 @@ void Simulation::activate() {
         }
     } else if(action_name.rfind("sls-key-edit-",0)==0) {
         const std::string id=action_name.substr(13);
-        if(id=="moapikey" || id=="ryuu" || id=="steamweb")
+        if(id=="moapikey" || id=="ryuu" || id=="steamweb" || id=="luatools")
             start_editor("SLS key: "+id,"",true);
     } else if (live() && action_name == "sls-provider-add") {
         start_editor("Lua Den provider URL", "");
