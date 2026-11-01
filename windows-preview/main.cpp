@@ -1,4 +1,4 @@
-// Windows-only SLS Den preview shell. No Steam accounts, network or game launches.
+// Windows-only Lua Den preview shell. No Steam accounts, network or game launches.
 #define UNICODE
 #define _UNICODE
 #include <windows.h>
@@ -43,7 +43,7 @@ void Refresh() {
     std::wstring line=(p.enabled?L"[ON]  ":L"[OFF] ")+W(p.display_name)+L"  |  "+W(p.url_template);
     SendMessageW(listbox,LB_ADDSTRING,0,(LPARAM)line.c_str());
   }
-  std::wstring message=L"SLS Den Windows preview  |  "+std::to_wstring(sources.size())+L"/16 sources  |  Offline mock mode";
+  std::wstring message=L"Lua Den Windows preview  |  "+std::to_wstring(sources.size())+L"/16 sources  |  Offline mock mode";
   SetWindowTextW(stateLabel,message.c_str());
 }
 int Selection(){return (int)SendMessageW(listbox,LB_GETCURSEL,0,0);}
@@ -60,7 +60,7 @@ LRESULT CALLBACK Proc(HWND window,UINT msg,WPARAM wp,LPARAM lp) {
       uiFont = CreateFontIndirectW(&metrics.lfMessageFont);
     }
     if (!uiFont) uiFont = static_cast<HFONT>(GetStockObject(DEFAULT_GUI_FONT));
-    Control(window,L"STATIC",L"SLS DEN  /  WINDOWS PREVIEW",0,20,18,680,35,0);
+    Control(window,L"STATIC",L"LUA DEN  /  WINDOWS PREVIEW",0,20,18,680,35,0);
     stateLabel=Control(window,L"STATIC",L"Offline mock mode",0,20,58,760,25,0);
     listbox=Control(window,L"LISTBOX",L"",LBS_NOTIFY|WS_BORDER|WS_VSCROLL,20,100,750,290,10);
     Control(window,L"STATIC",L"HTTPS URL template (must include {appid}):",0,20,410,700,23,0);
@@ -82,7 +82,7 @@ LRESULT CALLBACK Proc(HWND window,UINT msg,WPARAM wp,LPARAM lp) {
     if(id==101) {
       wchar_t buffer[2200]{};
       GetWindowTextW(url,buffer,2200);
-      if(sources.size()>=16) {MessageBoxW(window,L"Maximum 16 sources.",L"SLS Den",MB_OK);return 0;}
+      if(sources.size()>=16) {MessageBoxW(window,L"Maximum 16 sources.",L"Lua Den",MB_OK);return 0;}
       size_t num=1;
       for(;;++num) {
         std::string key="custom-"+std::to_string(num);
@@ -118,7 +118,7 @@ int WINAPI wWinMain(HINSTANCE instance,HINSTANCE,LPWSTR args,int show) {
   WNDCLASSW wc{};wc.lpfnWndProc=Proc;wc.hInstance=instance;wc.lpszClassName=L"SLSDenPreview";
   wc.hbrBackground=(HBRUSH)(COLOR_WINDOW+1);wc.hCursor=LoadCursor(nullptr,IDC_ARROW);
   RegisterClassW(&wc);
-  HWND window=CreateWindowW(wc.lpszClassName,L"SLS Den - Windows Preview",
+  HWND window=CreateWindowW(wc.lpszClassName,L"Lua Den - Windows Preview",
     WS_OVERLAPPEDWINDOW|WS_VISIBLE,CW_USEDEFAULT,CW_USEDEFAULT,815,640,nullptr,nullptr,instance,nullptr);
   ShowWindow(window,show);
   MSG msg{};while(GetMessageW(&msg,nullptr,0,0)>0){TranslateMessage(&msg);DispatchMessageW(&msg);}
