@@ -812,6 +812,12 @@ std::optional<std::string> Simulation::TakeSteamCatalogSearchRequest() {
     return std::exchange(pending_catalog_search_,std::nullopt);
 }
 
+void Simulation::SetProtonDbRatings(std::map<std::uint32_t,std::string> ratings) {
+    if(protondb_ratings_==ratings)return;
+    protondb_ratings_=std::move(ratings);
+    rebuild_view();
+}
+
 void Simulation::SetDenuvoKnown(std::set<std::uint32_t> appids) {
     if(denuvo_known_==appids)return;
     denuvo_known_=std::move(appids);
@@ -4773,6 +4779,16 @@ void Simulation::rebuild_view() {
                 item.badge += item.badge.empty() ? "Favorite" : " · Favorite";
             if(const auto app=game->id.steam_app();app && denuvo_known_.count(*app))
                 item.badge += item.badge.empty() ? "DENUVO" : " · DENUVO";
+            if(const auto app=game->id.steam_app();app) {
+                const auto rating=protondb_ratings_.find(*app);
+                if(rating!=protondb_ratings_.end()) {
+                    std::string tier=rating->second;
+                    if(!tier.empty()) {
+                        tier[0]=static_cast<char>(std::toupper(static_cast<unsigned char>(tier[0])));
+                        item.badge += item.badge.empty() ? "ProtonDB "+tier : " · ProtonDB "+tier;
+                    }
+                }
+            }
             if (game->art_failed) item.subtitle = "Artwork unavailable";
         }
         // Discovery stays reachable even if the user has no owned games yet.
