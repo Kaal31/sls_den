@@ -20,6 +20,9 @@
 #include <ctime>
 #include <exception>
 #include <filesystem>
+#include <fstream>
+#include <iterator>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <thread>
@@ -322,7 +325,8 @@ int main(int argc,char** argv){
    {
      const auto selected=simulation.state().navigation.detail_id;
      const auto app=selected ? selected->steam_app() : std::optional<std::uint32_t>{};
-     if(app) {
+     if(!app){StartupError("Selected fixture game cannot exercise Steam fix flow");return 8;}
+     {
        const auto fix_root=fs::temp_directory_path()/"lua-den-ui-fix-flow-ci";
        std::error_code e;
        fs::remove_all(fix_root,e);
@@ -350,6 +354,13 @@ int main(int argc,char** argv){
          return std::string(std::istreambuf_iterator<char>(in),std::istreambuf_iterator<char>());
        };
        if(read_config()!="original=2\n"){StartupError("UI Apply did not replace configuration");return 8;}
+       // A changed file must survive Unfix with the original backup intact.
+       {std::ofstream edited(target,std::ios::binary|std::ios::trunc);edited<<"user-edit=1\n";}
+       if(!simulation.action("focus:fix-undo-fixture-graphics")||!simulation.action("cross") ||
+          read_config()!="user-edit=1\n" || !fs::exists(target.string()+".lua-den-original")){
+         StartupError("UI Unfix overwrote edited user configuration");return 8;
+       }
+       {std::ofstream restored(target,std::ios::binary|std::ios::trunc);restored<<"original=2\n";}
        // Reopen with the same verified fixture to prove disk-backed restore state.
        simulation.SetVerifiedGameFixes({{*app,root}},{definition});
        simulation.tick();
