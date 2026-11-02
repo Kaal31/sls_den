@@ -6689,7 +6689,11 @@ void Simulation::activate() {
             view_.rows[static_cast<std::size_t>(std::clamp(view_.focused_row, 0, static_cast<int>(view_.rows.size()) - 1))].rail_only;
         if (!rail_action) {
             state_.navigation.settings_rail_focused = false;
-            return;
+            // An already-focused toggle should respond to the first Enter/Cross,
+            // not consume that key solely to switch the settings focus region.
+            const auto& focused=view_.rows[static_cast<std::size_t>(
+                std::clamp(view_.focused_row,0,static_cast<int>(view_.rows.size())-1))];
+            if(focused.kind!=RowKind::Toggle) return;
         }
     }
     if (state_.editor.active) {
