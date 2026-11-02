@@ -149,7 +149,16 @@ int main(int argc,char** argv){
  Log("Options: self-test="+std::to_string(options.self_test)+" headless="+std::to_string(options.headless));
  // The simulation model takes no real Steam credentials or network transport.
  Log("Constructing Playden simulation");
- playden::homebrew::Simulation simulation(options.fixtures,{},playden::homebrew::ModelMode::Simulation);
+ fs::path preview_profile;
+#ifdef _WIN32
+ if(!options.self_test && !options.navigation_test) {
+   if(const wchar_t* appdata=_wgetenv(L"APPDATA"))
+     preview_profile=fs::path(appdata)/"SLS Den"/"windows-preview-profile.json";
+   else preview_profile=startup_log.parent_path()/"windows-preview-profile.json";
+ }
+#endif
+ playden::homebrew::Simulation simulation(options.fixtures,preview_profile,playden::homebrew::ModelMode::Simulation);
+ if(!options.self_test && !options.navigation_test) simulation.EnableWindowsPreviewRuntime();
 #ifdef _WIN32
  if(!options.self_test) {
    if(const wchar_t* appdata=_wgetenv(L"APPDATA"))
