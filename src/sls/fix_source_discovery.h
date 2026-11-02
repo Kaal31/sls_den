@@ -62,7 +62,10 @@ inline FixDiscoveryResult DiscoverFixListings(
             continue;
         }
         std::vector<std::string> labels;
-        if(!lookup(source.id, app_id, game_name, &labels)) {
+        bool ok=false;
+        try { ok=lookup(source.id, app_id, game_name, &labels); }
+        catch(...) { ok=false; }
+        if(!ok) {
             result.attempts.push_back({id, FixSourceStatus::LookupFailed});
             continue;
         }
