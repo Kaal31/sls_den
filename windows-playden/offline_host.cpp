@@ -487,6 +487,24 @@ int main(int argc,char** argv){
      StartupError("lua.tools secret leaked after save");return 8;
    }
    Log("Manual lua.tools credential masking smoke test passed");
+   // SDL mouse hitboxes resolve to click-row:<key>. Mouse and Enter must
+   // activate the same Settings toggle, not merely move focus.
+   if(!simulation.action("route:settings") ||
+      !simulation.action("focus:settings-motion")) {
+     StartupError("Settings toggle not focusable");return 8;
+   }
+   const bool original_motion=simulation.state().reduced_motion;
+   if(!simulation.action("click-row:settings-motion") ||
+      simulation.state().reduced_motion==original_motion) {
+     StartupError("Mouse-style Settings toggle click did not activate");return 8;
+   }
+   if(!simulation.action("focus:settings-motion") ||
+      !simulation.action("cross") ||
+      simulation.state().reduced_motion!=original_motion) {
+     StartupError("Enter/Cross did not activate focused Settings toggle");return 8;
+   }
+   Log("Mouse click and keyboard toggle parity smoke test passed");
+
 
    // Source rows must be focusable, selectable, and reversible without network I/O.
    if(!simulation.action("route:settings") ||
