@@ -5,12 +5,16 @@ on:
     paths:
       - 'src/sls/config_fix.*'
       - 'src/sls/game_fix_service.h'
+      - 'src/sls/fix_source_registry.h'
+      - 'src/sls/fix_source_discovery.h'
       - 'tests/sls_config_fix_test.cpp'
       - '.github/workflows/sls-config-fix-fast.yml'
   pull_request:
     paths:
       - 'src/sls/config_fix.*'
       - 'src/sls/game_fix_service.h'
+      - 'src/sls/fix_source_registry.h'
+      - 'src/sls/fix_source_discovery.h'
       - 'tests/sls_config_fix_test.cpp'
       - '.github/workflows/sls-config-fix-fast.yml'
   workflow_dispatch:
