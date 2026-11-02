@@ -6,6 +6,8 @@
 #include <algorithm>
 #include <cctype>
 #include <filesystem>
+#include <fstream>
+#include <iterator>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -20,6 +22,7 @@ struct CuratedConfigFix {
     std::filesystem::path relative_path;
     std::string replacement;  // trusted local bytes, never unvalidated provider content
     std::string installed_version; // exact match when specified
+    std::string expected_original; // optional exact contents, checked before first Apply
 };
 struct VerifiedGameRoot {
     std::uint32_t app_id = 0;
@@ -34,7 +37,7 @@ struct VerifiedGameRoot {
 inline bool ValidCuratedDefinition(const CuratedConfigFix& def) {
     if (!def.steam_app_id || def.id.empty() || def.id.size()>64 ||
         def.title.empty() || def.title.size()>128 ||
-        def.replacement.size()>1024*1024 || def.relative_path.empty() ||
+        def.replacement.size()>1024*1024 || def.expected_original.size()>1024*1024 || def.relative_path.empty() ||
         def.relative_path.is_absolute() || def.relative_path.has_root_name())
         return false;
     if (!std::all_of(def.id.begin(),def.id.end(),[](unsigned char ch) {
@@ -66,6 +69,20 @@ inline FixResult ApplyCuratedGameFix(const VerifiedGameRoot& game,
         (def.installed_version.size() && def.installed_version != game.version) ||
         CheckGameFixAvailability(game, {def}) != GameFixAvailability::Available)
         return FixResult::UnsafePath;
+    // Reject incompatible or user-modified config files before changing bytes.
+    // Existing sidecars remain the fix engine's responsibility; never bypass them.
+    if (!def.expected_original.empty()) {
+        std::error_code ec;
+        const auto target = game.root / def.relative_path;
+        if (!std::filesystem::is_regular_file(target, ec) || ec ||
+            std::filesystem::file_size(target, ec) != def.expected_original.size() || ec)
+            return FixResult::Conflict;
+        std::ifstream input(target, std::ios::binary);
+        if (!input) return FixResult::IoError;
+        const std::string current((std::istreambuf_iterator<char>(input)),
+                                   std::istreambuf_iterator<char>());
+        if (current != def.expected_original) return FixResult::Conflict;
+    }
     return ApplyConfigFix(game.root, def.relative_path, def.replacement);
 }
 inline FixResult RemoveCuratedGameFix(const VerifiedGameRoot& game,
