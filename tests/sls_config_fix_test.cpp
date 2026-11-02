@@ -90,6 +90,15 @@ int main(){
  auto upgraded=authorized;upgraded.version="2.0";
  check(playden::sls::InspectConfigFix(root,vetted.relative_path)==FixResult::Applied,"fix remains present after version changes");
  check(playden::sls::RemoveCuratedGameFix(upgraded,vetted)==FixResult::Restored,"Unfix remains available after game update");
+ check(playden::sls::kFixSources.size()==7, "SLSDeck fix provider registry contains seven source families");
+ for (const auto& source : playden::sls::kFixSources) {
+   auto sourced=vetted;
+   sourced.source_id=std::string(source.id);
+   check(playden::sls::ValidCuratedDefinition(sourced), "recognized SLSDeck fix source is valid metadata");
+ }
+ auto unknown_source=vetted;
+ unknown_source.source_id="unknown-provider";
+ check(!playden::sls::ValidCuratedDefinition(unknown_source), "unknown fix source metadata rejected");
  auto malformed=vetted;
  malformed.id="../cross-game";
  check(!playden::sls::ValidCuratedDefinition(malformed),"reject action-key injection");
