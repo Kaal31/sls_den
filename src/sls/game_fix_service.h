@@ -74,6 +74,8 @@ inline FixResult ApplyCuratedGameFix(const VerifiedGameRoot& game,
     if (!def.expected_original.empty()) {
         std::error_code ec;
         const auto target = game.root / def.relative_path;
+        if (std::filesystem::is_symlink(target, ec) || ec)
+            return FixResult::UnsafePath;
         if (!std::filesystem::is_regular_file(target, ec) || ec ||
             std::filesystem::file_size(target, ec) != def.expected_original.size() || ec)
             return FixResult::Conflict;
