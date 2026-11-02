@@ -8497,6 +8497,14 @@ bool Simulation::action(const std::string& logical_action) {
         rebuild_view();
         return true;
     }
+    if (logical_action.rfind("click-row:", 0) == 0) {
+        const auto key=logical_action.substr(10);
+        const auto found=std::find_if(view_.rows.begin(),view_.rows.end(),
+            [&key](const ViewRow& row){return row.key==key && row.enabled;});
+        if(found==view_.rows.end())return false;
+        if(!action("focus:"+key))return false;
+        return action("cross");
+    }
     if (logical_action.rfind("focus:", 0) == 0) {
         const auto key = logical_action.substr(6);
         const auto found = std::find_if(view_.rows.begin(), view_.rows.end(), [&key](const ViewRow& row) { return row.key == key; });
