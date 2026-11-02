@@ -2,6 +2,7 @@
 // Lua Den local, curated configuration fixes only. Never execute remote scripts.
 // A host adapter must supply a verified installed-game root, not a catalog AppID.
 #include "sls/config_fix.h"
+#include "sls/fix_source_registry.h"
 #include <cstdint>
 #include <algorithm>
 #include <cctype>
@@ -23,6 +24,7 @@ struct CuratedConfigFix {
     std::string replacement;  // trusted local bytes, never unvalidated provider content
     std::string installed_version; // exact match when specified
     std::string expected_original; // optional exact contents, checked before first Apply
+    std::string source_id = "local"; // source identity is not executable trust
 };
 struct VerifiedGameRoot {
     std::uint32_t app_id = 0;
@@ -35,7 +37,8 @@ struct VerifiedGameRoot {
 // Reject ambiguous identifiers and unsafe catalogue metadata before displaying
 // or attempting an operation. This is additional to filesystem containment checks.
 inline bool ValidCuratedDefinition(const CuratedConfigFix& def) {
-    if (!def.steam_app_id || def.id.empty() || def.id.size()>64 ||
+    if (!def.steam_app_id || !KnownFixSource(def.source_id) ||
+        def.id.empty() || def.id.size()>64 ||
         def.title.empty() || def.title.size()>128 ||
         def.replacement.size()>1024*1024 || def.expected_original.size()>1024*1024 || def.relative_path.empty() ||
         def.relative_path.is_absolute() || def.relative_path.has_root_name())
