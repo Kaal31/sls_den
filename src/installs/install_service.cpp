@@ -2,6 +2,9 @@
 #include "steam/install_volumes.h"
 
 #include <sys/stat.h>
+#ifdef _WIN32
+#include <direct.h>
+#endif
 
 #include <algorithm>
 #include <chrono>
@@ -380,7 +383,11 @@ void InstallService::Scan() {
 void InstallService::SaveRegistry() {
   if (!default_volume_saved_) SaveDefaultVolume();
   const auto& primary = volumes_.front().games_root;
+#ifdef _WIN32
+  _mkdir(primary.c_str());
+#else
   mkdir(primary.c_str(), 0777);
+#endif
   const auto path = primary + "/" + kRegistry;
   const auto temporary = path + ".tmp";
   FILE* registry = std::fopen(temporary.c_str(), "w");
@@ -400,7 +407,11 @@ void InstallService::SaveRegistry() {
 
 void InstallService::SaveDefaultVolume() {
   const auto& primary = volumes_.front().games_root;
+#ifdef _WIN32
+  _mkdir(primary.c_str());
+#else
   mkdir(primary.c_str(), 0777);
+#endif
   const auto path = primary + "/" + kDefaultVolume;
   const auto temporary = path + ".tmp";
   FILE* file = std::fopen(temporary.c_str(), "w");
@@ -421,7 +432,11 @@ void InstallService::SaveDismissed() {
     });
   }), dismissed_.end());
   const auto& primary = volumes_.front().games_root;
+#ifdef _WIN32
+  _mkdir(primary.c_str());
+#else
   mkdir(primary.c_str(), 0777);
+#endif
   const auto path = primary + "/" + kDismissed;
   const auto temporary = path + ".tmp";
   FILE* file = std::fopen(temporary.c_str(), "w");
