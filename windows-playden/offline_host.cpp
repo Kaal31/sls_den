@@ -347,6 +347,12 @@ int main(int argc,char** argv){
          return std::any_of(rows.begin(),rows.end(),[&](const auto& row){return row.key==key;});
        };
        if(!row_has("fix-apply-fixture-graphics")||!row_has("fix-undo-fixture-graphics")){
+         Log("Curated UI fixture availability="+std::to_string(static_cast<int>(
+           playden::sls::CheckGameFixAvailability(root,{definition})))+
+           " app="+std::to_string(*app)+
+           " route snapshot="+simulation.snapshot());
+         for(const auto& row:simulation.view().rows)
+           Log("Curated UI diagnostic row: "+row.key+" action="+row.action);
          StartupError("Curated fixes were not rendered on native game details");return 8;
        }
        if(!simulation.action("focus:fix-apply-fixture-graphics")||!simulation.action("cross")) {
