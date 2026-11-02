@@ -339,12 +339,17 @@ int main(int argc,char** argv){
        playden::sls::VerifiedGameRoot root{*app,fix_root,"fixture-1",true,true,true};
        playden::sls::CuratedConfigFix definition{*app,"fixture-graphics","Fixture configuration",
          "drive_c/game/settings.ini","original=2\n","fixture-1"};
-       simulation.SetVerifiedGameFixes({{*app,root}},{definition});
+       auto malformed_definition=definition;
+       malformed_definition.id="../invalid";
+       simulation.SetVerifiedGameFixes({{*app,root}},{definition,malformed_definition});
        simulation.tick();
        const auto row_has=[&](const std::string& key) {
          const auto& rows=simulation.view().rows;
          return std::any_of(rows.begin(),rows.end(),[&](const auto& row){return row.key==key;});
        };
+       if(row_has("fix-apply-../invalid") || row_has("fix-undo-../invalid")) {
+         StartupError("Invalid curated definition leaked into native UI actions");return 8;
+       }
        if(!row_has("fix-apply-fixture-graphics")||!row_has("fix-undo-fixture-graphics")){
          Log("Curated UI fixture availability="+std::to_string(static_cast<int>(
            playden::sls::CheckGameFixAvailability(root,{definition})))+
