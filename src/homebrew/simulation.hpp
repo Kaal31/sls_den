@@ -9,6 +9,7 @@
 #include "runtime/game_settings.h"
 #include "sls/provider_registry.h"
 #include "sls/game_fix_service.h"
+#include "sls/fix_source_discovery.h"
 #include "sls/steam_catalog_search.h"
 
 #include <array>
@@ -729,6 +730,7 @@ public:
                ModelMode mode = ModelMode::Simulation);
 
     void SetSlsSourcePreferencePath(std::filesystem::path path);
+    void SetFixListings(std::uint32_t app_id, sls::FixDiscoveryResult result);
     void SetVerifiedGameFixes(std::map<std::uint32_t,sls::VerifiedGameRoot> roots,
                               std::vector<sls::CuratedConfigFix> definitions);
     [[nodiscard]] std::optional<std::string> TakeSteamCatalogSearchRequest();
@@ -922,6 +924,7 @@ private:
     std::filesystem::path sls_source_preference_path_;
     std::map<std::uint32_t,sls::VerifiedGameRoot> verified_fix_roots_;
     std::vector<sls::CuratedConfigFix> curated_fixes_;
+    std::map<std::uint32_t,sls::FixDiscoveryResult> fix_listings_;
     std::string sls_fixture_discovery_status_ = "Not checked";
     ViewData view_;
     ViewData route_view_;
