@@ -57,6 +57,18 @@ jobs:
           $env:PATH = "C:\vcpkg\installed\x64-windows\bin;" + $env:PATH
           & build/windows-playden/playden-windows-offline.exe --self-test
           if ($LASTEXITCODE -ne 0) { throw "Windows Playden offline startup smoke failed" }
+      - name: Compile full Playden service host (login, library, installs)
+        shell: pwsh
+        run: |
+          # This builds the existing shared Playden host with real backend services,
+          # rather than confusing the public-store simulation with a live client.
+          # The host intentionally still denies Windows --live-network until
+          # private credential storage and file publication are verified.
+          cmake --build build/windows-playden --target playden-homebrew --parallel 2 2>&1 |
+            Tee-Object windows-playden/full-host-build.log
+          if ($LASTEXITCODE -ne 0) {
+            throw "Windows full Playden host still has portability blockers; inspect full-host-build.log"
+          }
       - name: Package actual Windows Playden offline UI
         shell: pwsh
         run: |
