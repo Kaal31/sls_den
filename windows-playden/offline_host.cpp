@@ -411,6 +411,39 @@ int main(int argc,char** argv){
        fs::remove_all(fix_root,e);
      }
    }
+   // An unavailable source must never render phantom fixes or hide a valid
+   // source match. Remote matches are browse-only, not executable actions.
+   {
+     if(!simulation.action("route:library") ||
+        !simulation.action("details:900002")) {
+       StartupError("Cannot reopen game detail for provider isolation test");return 8;
+     }
+     const auto lookup=playden::sls::DiscoverFixListingsHttp(
+       900002,"Fixture Game",{}, {}, {"ryuu","perondepot","nerai"},
+       [](std::string_view source,std::uint32_t,std::string_view)
+           -> playden::sls::FixLookupResponse {
+         if(source=="ryuu")return {404,{"Unlisted Ryuu fix"}};
+         if(source=="perondepot")return {503,{"Offline mirror fix"}};
+         if(source=="nerai")return {200,{"Available NERAI fix"}};
+         return {0,{}};
+       });
+     simulation.SetFixListings(900002,lookup);
+     auto present=[&](std::string_view title) {
+       return std::any_of(simulation.view().rows.begin(),simulation.view().rows.end(),
+                          [&](const auto& row){return row.title==title;});
+     };
+     if(!present("Available NERAI fix") || present("Unlisted Ryuu fix") ||
+        present("Offline mirror fix")) {
+       StartupError("Provider error isolation failed in native Fixes UI");return 8;
+     }
+     const auto found=std::find_if(simulation.view().rows.begin(),simulation.view().rows.end(),
+         [](const auto& row){return row.title=="Available NERAI fix";});
+     if(found==simulation.view().rows.end() || found->action!="details-fixes-info") {
+       StartupError("Remote Fixes listing unexpectedly exposes installation action");return 8;
+     }
+     simulation.SetFixListings(900002,{});
+   }
+   Log("Mixed 404/503/200 native Fixes display test passed");
    Log("Curated native Fixes listing -> Apply -> Unfix smoke test passed");
 
    simulation.action("route:home");
