@@ -6,6 +6,7 @@
 #include <iostream>
 #include <string>
 #include <cstdlib>
+#include <stdexcept>
 namespace fs=std::filesystem;
 using playden::sls::ApplyConfigFix;
 using playden::sls::RestoreConfigFix;
