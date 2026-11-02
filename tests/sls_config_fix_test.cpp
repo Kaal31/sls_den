@@ -95,7 +95,7 @@ int main(){
    using namespace playden::sls;
    int lookups=0;
    const auto listings=DiscoverFixListings(12345,"Fixture Game",
-       {"perondepot"},{"luatools-catalog"},{"ryuu","luatools-catalog"},
+       {"perondepot"},{"luatools-catalog"},{"ryuu"},
        [&](std::string_view id,std::uint32_t app,std::string_view name,std::vector<std::string>* labels) {
          ++lookups;
          check(id=="ryuu" && app==12345 && name=="Fixture Game","bounded lookup uses selected provider");
