@@ -5233,8 +5233,9 @@ void Simulation::rebuild_view() {
                         fixes.value="Available";
                         fixes.subtitle="Locally curated configuration fixes";
                         for(const auto& fix:curated_fixes_) {
-                            if(fix.steam_app_id!=*app || (!fix.installed_version.empty() &&
-                                 fix.installed_version!=root->second.version))continue;
+                            if(fix.steam_app_id!=*app || !sls::ValidCuratedDefinition(fix) ||
+                               (!fix.installed_version.empty() &&
+                                fix.installed_version!=root->second.version))continue;
                             const auto disk=sls::InspectConfigFix(root->second.root,fix.relative_path);
                             auto& apply=row("fix-apply-"+fix.id,RowKind::Action,"Apply "+fix.title,"curated-fix-apply");
                             apply.value=disk==sls::FixResult::Applied ? "Applied" :
@@ -5247,7 +5248,7 @@ void Simulation::rebuild_view() {
                         fixes.value="Version mismatch";
                         fixes.subtitle="Apply disabled for this version; previously applied fixes can still be restored";
                         for(const auto& fix:curated_fixes_) {
-                            if(fix.steam_app_id!=*app ||
+                            if(fix.steam_app_id!=*app || !sls::ValidCuratedDefinition(fix) ||
                                sls::InspectConfigFix(root->second.root,fix.relative_path)!=sls::FixResult::Applied) continue;
                             auto& undo=row("fix-undo-"+fix.id,RowKind::Action,"Unfix "+fix.title,"curated-fix-undo");
                             undo.subtitle="Restore previously applied configuration";
