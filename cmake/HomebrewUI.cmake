@@ -462,6 +462,25 @@ if(WIN32)
     add_dependencies(playden-windows-offline playden_homebrew_assets)
     set_target_properties(playden-windows-offline PROPERTIES
         RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
+
+    # Opt-in public catalogue preview. It deliberately retains ModelMode::Simulation:
+    # no Steam account, depot download, installation or executable launch is enabled.
+    add_executable(playden-windows-online
+        "${CMAKE_SOURCE_DIR}/windows-playden/offline_host.cpp"
+        "${CMAKE_SOURCE_DIR}/src/sls/steam_catalog_worker.cpp"
+        "${CMAKE_SOURCE_DIR}/src/sls/steam_catalog_search.cpp")
+    target_compile_features(playden-windows-online PRIVATE cxx_std_20)
+    target_compile_definitions(playden-windows-online PRIVATE
+        SDL_MAIN_HANDLED=1 GL_GLEXT_PROTOTYPES=1 NOMINMAX=1 WIN32_LEAN_AND_MEAN=1
+        PLAYDEN_WINDOWS_PUBLIC_CATALOG=1
+        PLAYDEN_HOMEBREW_ASSETS_DIR="${playden_homebrew_assets}"
+        PLAYDEN_HOMEBREW_FIXTURES_DIR="${CMAKE_SOURCE_DIR}/fixtures/ui-comparison")
+    target_link_libraries(playden-windows-online PRIVATE
+        playden_homebrew_ui playden_homebrew_model playden_steam_http
+        playden_steam_protocol PkgConfig::SDL2 OpenGL::GL)
+    add_dependencies(playden-windows-online playden_homebrew_assets)
+    set_target_properties(playden-windows-online PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}")
 endif()
 
 if(BUILD_TESTING)
