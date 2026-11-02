@@ -1046,7 +1046,7 @@ class Render::Impl
         if (focused && route_focus_)
             stats_.focused_control_key = row.key;
         const float amount = control_focus(row.key, focused && route_focus_);
-        if(row.enabled) add_hit(rect, row.action);
+        if(row.enabled) add_hit(rect, "click-row:"+row.key);
         const auto title = row.kind == RowKind::Toggle ? row.title + (row.selected ? " · On" : " · Off") : row.title;
         mac_button(scene_, rect, title, primary && row.enabled, amount, !row.enabled, row.value, primary && rect.h >= 80.0F);
     }
@@ -3524,7 +3524,7 @@ class Render::Impl
         for (std::size_t index = 0; index < view.rows.size(); ++index)
         {
             const gfx::Rect button{panel.x + pad + index * (button_width + 16.0F), y, button_width, 68.0F};
-            if(view.rows[index].enabled) add_hit(button, view.rows[index].action, true);
+            if(view.rows[index].enabled) add_hit(button, "click-row:"+view.rows[index].key, true);
             mac_button(overlay_, button, overlay_label(view.rows[index]), view.rows[index].dangerous,
                        control_focus("modal-" + view.rows[index].key, static_cast<int>(index) == view.focused_row),
                        !view.rows[index].enabled, "", false, kPanel);
@@ -4153,7 +4153,7 @@ class Render::Impl
             const bool described = (settings_sheet || checkbox || view.surface == "installed-games" || import_sheet) && !row.subtitle.empty() && row.kind != RowKind::Heading;
             const gfx::Rect rect{bounds.x, y, bounds.w, described ? 96.0F + hint_extra(row) : 72.0F};
             if(row.enabled && y>=bounds.y && y+rect.h<=bounds.y+bounds.h)
-                add_hit(rect, row.action, true);
+                add_hit(rect, "click-row:"+row.key, true);
             const float amount = control_focus("sheet-" + row.key, index == view.focused_row);
             focus_glow(overlay_, rect, amount);
             overlay_.rounded_rect(rect, 8.0F, kPanel);
