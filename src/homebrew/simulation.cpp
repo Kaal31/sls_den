@@ -868,6 +868,11 @@ void Simulation::SaveAddedGames() const {
     }
 }
 
+void Simulation::SetFixListings(std::uint32_t app_id, sls::FixDiscoveryResult result) {
+    if(!app_id) return;
+    fix_listings_[app_id]=std::move(result);
+    rebuild_view();
+}
 void Simulation::SetVerifiedGameFixes(
     std::map<std::uint32_t,sls::VerifiedGameRoot> roots,
     std::vector<sls::CuratedConfigFix> definitions) {
@@ -5258,6 +5263,24 @@ void Simulation::rebuild_view() {
                     else if(availability==sls::GameFixAvailability::StorageUnavailable)fixes.value="Storage unavailable";
                     else if(availability==sls::GameFixAvailability::NoDefinitions)fixes.value="No vetted fixes";
                     else fixes.value="Not installed";
+                }
+            }
+        }
+        // Remote Fixes results are informational until an explicitly verified
+        // PS5 adapter supports their format. Never synthesize Apply actions.
+        if(game) {
+            if(const auto app=game->id.steam_app()) {
+                const auto discovered=fix_listings_.find(*app);
+                if(discovered!=fix_listings_.end()) {
+                    std::size_t index=0;
+                    for(const auto& match:discovered->second.matches) {
+                        if(!sls::KnownFixSource(match.source_id) || match.label.empty() ||
+                           match.label.size()>128 || index>=64) continue;
+                        auto& entry=row("fix-listing-"+std::to_string(index++),
+                                        RowKind::Action,match.label,"details-fixes-info");
+                        entry.value="Not installable";
+                        entry.subtitle="Source: "+match.source_id+" · PS5 compatibility not verified";
+                    }
                 }
             }
         }
