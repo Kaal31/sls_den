@@ -109,6 +109,22 @@ int main(){
          listings.attempts[2].status==FixSourceStatus::AdapterUnavailable &&
          listings.attempts[4].status==FixSourceStatus::AdapterUnavailable,
          "disabled and unsupported adapters never queried");
+   const auto independent=DiscoverFixListingsHttp(12345,"Fixture Game",{}, {},
+       {"ryuu","perondepot","luatools-direct","nerai"},
+       [](std::string_view id,std::uint32_t,std::string_view) -> FixLookupResponse {
+         if(id=="ryuu") return {404,{"Not actually available"}};
+         if(id=="perondepot") throw std::runtime_error("connection timed out");
+         if(id=="luatools-direct") return {503,{"Service unavailable"}};
+         if(id=="nerai") return {200,{"Verified listing"}};
+         return {0,{}};
+       });
+   check(independent.matches.size()==1 && independent.matches[0].source_id=="nerai",
+         "404 timeout and 503 do not display phantom fixes or suppress good provider");
+   check(independent.attempts[0].status==FixSourceStatus::NoMatch &&
+         independent.attempts[1].status==FixSourceStatus::LookupFailed &&
+         independent.attempts[2].status==FixSourceStatus::LookupFailed &&
+         independent.attempts[3].status==FixSourceStatus::Found,
+         "provider errors are reported independently");
    const auto missing=DiscoverFixListings(12345,"Fixture Game",{}, {}, {"luatools-catalog"},
        [](std::string_view,std::uint32_t,std::string_view,std::vector<std::string>*) { return true; });
    check(missing.attempts[4].status==FixSourceStatus::MissingAccount,
