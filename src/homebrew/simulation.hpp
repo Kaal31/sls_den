@@ -730,6 +730,7 @@ public:
                ModelMode mode = ModelMode::Simulation);
 
     void SetSlsSourcePreferencePath(std::filesystem::path path);
+    void EnableWindowsPreviewRuntime(); // simulated kit, never a console runtime
     void SetFixListings(std::uint32_t app_id, sls::FixDiscoveryResult result);
     void SetVerifiedGameFixes(std::map<std::uint32_t,sls::VerifiedGameRoot> roots,
                               std::vector<sls::CuratedConfigFix> definitions);
