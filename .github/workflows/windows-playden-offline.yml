@@ -44,12 +44,12 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force .vcpkg-bincache | Out-Null
           C:\vcpkg\vcpkg.exe install sdl2:x64-windows opengl-registry:x64-windows mbedtls:x64-windows curl[websockets]:x64-windows glew:x64-windows
-      - name: Configure offline-only Windows Playden
+      - name: Configure Windows simulated Playden and public-online catalogue targets
         shell: pwsh
         run: |
           cmake -S . -B build/windows-offline -G Ninja -DCMAKE_MAKE_PROGRAM=ninja -DCMAKE_C_COMPILER=clang-cl -DCMAKE_CXX_COMPILER=clang-cl -DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake -DBUILD_TESTING=OFF -DPLAYDEN_PLATFORM_PS5=OFF -DPLAYDEN_WINDOWS_OFFLINE_ONLY=ON -DCMAKE_BUILD_TYPE=Release 2>&1 | Tee-Object windows-playden/offline-configure.log
           if ($LASTEXITCODE -ne 0) { throw "Windows offline Playden configure failed" }
-      - name: Build actual Playden renderer and simulation
+      - name: Build offline simulation and public-online catalogue preview
         shell: pwsh
         run: |
           cmake --build build/windows-offline --target playden-windows-offline playden-windows-online --parallel 3 2>&1 | Tee-Object windows-playden/offline-compile.log
@@ -89,7 +89,7 @@ jobs:
           Invoke-BoundedTest "first-run" @("--scenario", "first-run", "--self-test")
           Invoke-BoundedTest "offline" @("--scenario", "offline", "--self-test")
           Invoke-BoundedTest "navigation" @("--navigation-self-test", "--self-test") 180
-      - name: Bundle actual Playden Windows application
+      - name: Bundle offline Playden simulation
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force windows-playden/offline-dist | Out-Null
