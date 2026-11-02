@@ -1,0 +1,80 @@
+#pragma once
+// SLSDeck-aligned Fixes discovery status. This component never downloads,
+// extracts, executes, or installs third-party fix payloads.
+// Platform adapters must separately verify provenance and compatibility.
+#include "sls/fix_source_registry.h"
+#include <algorithm>
+#include <cstdint>
+#include <functional>
+#include <string>
+#include <string_view>
+#include <vector>
+
+namespace playden::sls {
+enum class FixSourceStatus {
+    Disabled, MissingAccount, AdapterUnavailable, LookupFailed, NoMatch, Found
+};
+struct FixSourceMatch {
+    std::string source_id;
+    std::string label;
+    // Display only; never an authorization to apply or execute a payload.
+};
+struct FixSourceAttempt {
+    std::string source_id;
+    FixSourceStatus status;
+};
+struct FixDiscoveryResult {
+    std::vector<FixSourceMatch> matches;
+    std::vector<FixSourceAttempt> attempts;
+};
+// A host implements a bounded, read-only provider-specific catalogue lookup.
+// No raw download URL or executable bytes cross this interface.
+using FixCatalogueLookup = std::function<bool(
+    std::string_view source_id, std::uint32_t app_id, std::string_view game_name,
+    std::vector<std::string>* labels)>;
+
+inline FixDiscoveryResult DiscoverFixListings(
+    std::uint32_t app_id, std::string_view game_name,
+    const std::vector<std::string>& disabled_ids,
+    const std::vector<std::string>& available_accounts,
+    const std::vector<std::string>& available_adapters,
+    const FixCatalogueLookup& lookup) {
+    FixDiscoveryResult result;
+    for(const auto& source : kFixSources) {
+        const auto id = std::string(source.id);
+        const auto contains = [&](const std::vector<std::string>& values) {
+            return std::find(values.begin(), values.end(), id) != values.end();
+        };
+        if(contains(disabled_ids)) {
+            result.attempts.push_back({id, FixSourceStatus::Disabled});
+            continue;
+        }
+        if(source.requires_account && !contains(available_accounts)) {
+            result.attempts.push_back({id, FixSourceStatus::MissingAccount});
+            continue;
+        }
+        if(source.requires_platform_adapter && !contains(available_adapters)) {
+            result.attempts.push_back({id, FixSourceStatus::AdapterUnavailable});
+            continue;
+        }
+        if(app_id==0 || !lookup) {
+            result.attempts.push_back({id, FixSourceStatus::LookupFailed});
+            continue;
+        }
+        std::vector<std::string> labels;
+        if(!lookup(source.id, app_id, game_name, &labels)) {
+            result.attempts.push_back({id, FixSourceStatus::LookupFailed});
+            continue;
+        }
+        unsigned count=0;
+        for(const auto& label : labels) {
+            if(!label.empty() && label.size()<=128 && count<32) {
+                result.matches.push_back({id,label});
+                ++count;
+            }
+        }
+        result.attempts.push_back({id, count ? FixSourceStatus::Found : FixSourceStatus::NoMatch});
+    }
+    return result;
+}
+} // namespace playden::sls
