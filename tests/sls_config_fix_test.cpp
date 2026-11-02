@@ -1,5 +1,6 @@
 #include "sls/config_fix.h"
 #include "sls/game_fix_service.h"
+#include "sls/fix_source_discovery.h"
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -90,6 +91,29 @@ int main(){
  auto upgraded=authorized;upgraded.version="2.0";
  check(playden::sls::InspectConfigFix(root,vetted.relative_path)==FixResult::Applied,"fix remains present after version changes");
  check(playden::sls::RemoveCuratedGameFix(upgraded,vetted)==FixResult::Restored,"Unfix remains available after game update");
+ {
+   using namespace playden::sls;
+   int lookups=0;
+   const auto listings=DiscoverFixListings(12345,"Fixture Game",
+       {"perondepot"},{"luatools-catalog"},{"ryuu","luatools-catalog"},
+       [&](std::string_view id,std::uint32_t app,std::string_view name,std::vector<std::string>* labels) {
+         ++lookups;
+         check(id=="ryuu" && app==12345 && name=="Fixture Game","bounded lookup uses selected provider");
+         labels->push_back("Example listing");
+         return true;
+       });
+   check(lookups==1 && listings.matches.size()==1 && listings.matches[0].source_id=="ryuu",
+         "only enabled and configured source queried");
+   check(listings.attempts.size()==kFixSources.size() &&
+         listings.attempts[1].status==FixSourceStatus::Disabled &&
+         listings.attempts[2].status==FixSourceStatus::AdapterUnavailable &&
+         listings.attempts[4].status==FixSourceStatus::AdapterUnavailable,
+         "disabled and unsupported adapters never queried");
+   const auto missing=DiscoverFixListings(12345,"Fixture Game",{}, {}, {"luatools-catalog"},
+       [](std::string_view,std::uint32_t,std::string_view,std::vector<std::string>*) { return true; });
+   check(missing.attempts[4].status==FixSourceStatus::MissingAccount,
+         "account-gated source refuses unauthenticated discovery");
+ }
  check(playden::sls::kFixSources.size()==7, "SLSDeck fix provider registry contains seven source families");
  for (const auto& source : playden::sls::kFixSources) {
    auto sourced=vetted;
