@@ -815,6 +815,8 @@ void Simulation::EnableWindowsPreviewRuntime() {
     state_.runtime=RuntimeState::Ready;
     for(auto& installation:state_.installations)
         if(installation.available) installation.runtime_ready=true;
+    for(auto& [id, runtime]:state_.runtime_games)
+        if(runtime.status=="No kit") runtime.status="Ready";
     rebuild_view();
 }
 
