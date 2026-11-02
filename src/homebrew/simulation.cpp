@@ -809,6 +809,15 @@ Simulation::Simulation(std::filesystem::path fixture_directory, std::filesystem:
     rebuild_view();
 }
 
+void Simulation::EnableWindowsPreviewRuntime() {
+    if(live()) return;
+    // This is the fixture kit used to exercise Prepare/Play UI, not Wine or PS5.
+    state_.runtime=RuntimeState::Ready;
+    for(auto& installation:state_.installations)
+        if(installation.available) installation.runtime_ready=true;
+    rebuild_view();
+}
+
 std::optional<std::string> Simulation::TakeSteamCatalogSearchRequest() {
     return std::exchange(pending_catalog_search_,std::nullopt);
 }
@@ -3500,7 +3509,11 @@ bool Simulation::save_profile() {
             + ",\"reserved\":" + std::to_string(volume.reserved_bytes) + ",\"available\":" + (volume.available ? "true" : "false") + '}';
     }
     output += "]}";
+#ifdef _WIN32
+    std::FILE* file = _wfopen(profile_path_.c_str(), L"wb");
+#else
     std::FILE* file = std::fopen(profile_path_.string().c_str(), "wb");
+#endif
     if (!file) {
         state_.persistence_available = false;
         state_.notices.push_back({"save-failed", "Changes cannot be saved", "retry-save", true, 0});
