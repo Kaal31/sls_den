@@ -110,7 +110,13 @@ target_compile_features(playden_runtime_settings_publication_journal PUBLIC cxx_
 target_link_libraries(playden_runtime_settings_publication_journal PUBLIC playden_publication_transaction
     playden_runtime_installs playden_runtime_artifact_hash playden_runtime_publication_contract playden_runtime_publication_backup)
 
-add_library(playden_runtime_publication_backup STATIC "${CMAKE_SOURCE_DIR}/src/runtime/publication_backup.cpp")
+if(WIN32 AND PLAYDEN_WINDOWS_OFFLINE_ONLY)
+    add_library(playden_runtime_publication_backup STATIC
+        "${CMAKE_SOURCE_DIR}/windows-playden/publication_backup_windows.cpp")
+else()
+    add_library(playden_runtime_publication_backup STATIC
+        "${CMAKE_SOURCE_DIR}/src/runtime/publication_backup.cpp")
+endif()
 target_include_directories(playden_runtime_publication_backup PUBLIC "${CMAKE_SOURCE_DIR}/src")
 target_compile_features(playden_runtime_publication_backup PUBLIC cxx_std_17)
 target_link_libraries(playden_runtime_publication_backup PUBLIC playden_runtime_artifact_hash playden_storage)
