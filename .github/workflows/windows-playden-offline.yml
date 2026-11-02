@@ -52,7 +52,7 @@ jobs:
       - name: Build actual Playden renderer and simulation
         shell: pwsh
         run: |
-          cmake --build build/windows-offline --target playden-windows-offline --parallel 3 2>&1 | Tee-Object windows-playden/offline-compile.log
+          cmake --build build/windows-offline --target playden-windows-offline playden-windows-online --parallel 3 2>&1 | Tee-Object windows-playden/offline-compile.log
           if ($LASTEXITCODE -ne 0) { throw "Windows offline Playden compile/link failed" }
       - name: Smoke-test native simulation process
         shell: pwsh
@@ -108,6 +108,25 @@ jobs:
             playden-windows-offline.exe
           No Steam login, downloads, or game installation.
           "@ | Set-Content windows-playden/offline-dist/README.txt
+      - name: Bundle opt-in public Steam Store online preview
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force windows-playden/online-dist | Out-Null
+          Copy-Item build/windows-offline/playden-windows-online.exe windows-playden/online-dist
+          Copy-Item build/windows-offline/homebrew-assets windows-playden/online-dist/homebrew-assets -Recurse
+          Copy-Item fixtures/ui-comparison windows-playden/online-dist/fixtures -Recurse
+          Get-ChildItem "C:\vcpkg\installed\x64-windows\bin" -Filter "*.dll" |
+            Copy-Item -Destination windows-playden/online-dist
+          @"
+          Lua Den - Windows public Steam Store online preview.
+          Live: search the public Steam Store. No login or game downloads.
+          Simulated only: installation, preparation, launch, uninstall and Fixes.
+          HTTPS lookup failures leave existing simulated library and other results alone.
+          Extract all files together and run playden-windows-online.exe.
+          "@ | Set-Content windows-playden/online-dist/README.txt
+          $env:PATH = "windows-playden/online-dist;C:\vcpkg\installed\x64-windows\bin;" + $env:PATH
+          & build/windows-offline/playden-windows-online.exe --self-test
+          if ($LASTEXITCODE -ne 0) { throw "Windows online preview self-test failed" }
       - name: Verify packaged offline dependencies and UI assets
         shell: pwsh
         run: |
@@ -157,6 +176,10 @@ jobs:
         with:
           name: playden-windows-real-ui-offline
           path: windows-playden/offline-dist/**
+      - uses: actions/upload-artifact@v4
+        with:
+          name: playden-windows-public-store-online
+          path: windows-playden/online-dist/**
       - uses: actions/upload-artifact@v4
         if: always()
         with:
