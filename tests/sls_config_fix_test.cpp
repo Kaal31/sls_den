@@ -74,6 +74,18 @@ int main(){
  playden::sls::CuratedConfigFix vetted{12345,"local-config","Trusted local test fix","drive_c/game/curated.ini","enabled=1\n","1.0"};
  playden::sls::VerifiedGameRoot authorized{12345,root,"1.0",true,true,true};
  check(playden::sls::CheckGameFixAvailability(authorized,{vetted})==playden::sls::GameFixAvailability::Available,"curated fix is available");
+ auto guarded=vetted;
+ guarded.relative_path="drive_c/game/settings.ini";
+ guarded.expected_original="incorrect-original\\n";
+ check(playden::sls::ApplyCuratedGameFix(authorized,guarded)==FixResult::Conflict,
+       "vetted fix rejects unexpected original content");
+ check(playden::sls::InspectConfigFix(root,guarded.relative_path)!=FixResult::Applied,
+       "rejected guarded fix leaves no applied marker");
+ guarded.expected_original=read(root/guarded.relative_path);
+ check(playden::sls::ApplyCuratedGameFix(authorized,guarded)==FixResult::Applied,
+       "vetted fix accepts matching original contents");
+ check(playden::sls::RemoveCuratedGameFix(authorized,guarded)==FixResult::Restored,
+       "guarded fix can be reversed");
  check(playden::sls::ApplyCuratedGameFix(authorized,vetted)==FixResult::Applied,"curated fix applies to verified game");
  auto upgraded=authorized;upgraded.version="2.0";
  check(playden::sls::InspectConfigFix(root,vetted.relative_path)==FixResult::Applied,"fix remains present after version changes");
