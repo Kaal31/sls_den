@@ -95,6 +95,13 @@ int main(){
  check(!playden::sls::ValidCuratedDefinition(malformed),"reject missing AppID");
  auto no_install=authorized; no_install.installed=false;
  check(playden::sls::ApplyCuratedGameFix(no_install,vetted)==FixResult::UnsafePath,"no catalog-only fix application");
+ auto disappeared=authorized; disappeared.root=root/"disconnected-drive";
+ check(playden::sls::CheckGameFixAvailability(disappeared,{vetted})==playden::sls::GameFixAvailability::StorageUnavailable,
+       "deleted or disconnected game directory not fix eligible");
+ check(playden::sls::ApplyCuratedGameFix(disappeared,vetted)==FixResult::UnsafePath,
+       "reject applying to missing installation directory");
+ check(playden::sls::RemoveCuratedGameFix(disappeared,vetted)==FixResult::UnsafePath,
+       "reject restoring through missing installation directory");
  auto other=authorized; other.app_id=12346;
  check(playden::sls::ApplyCuratedGameFix(other,vetted)==FixResult::UnsafePath,"no cross-game fix");
  auto unsupported=authorized; unsupported.runtime_supported=false;
