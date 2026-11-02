@@ -1876,6 +1876,10 @@ void Controller::TickInstalls() {
     const auto app = entry.game_id.steam_app();
     const auto root = game_roots_.find(entry.game_id);
     if (!app || !entry.available || root == game_roots_.end() || root->second.empty()) continue;
+    // Projected locations can outlive a removed drive or a deleted install.
+    // A catalogue ID and an available volume flag alone cannot verify files.
+    std::error_code path_error;
+    if (!std::filesystem::is_directory(root->second, path_error) || path_error) continue;
     // Curation remains explicit: there are no built-in remote executable patches.
     verified_roots[*app] = sls::VerifiedGameRoot{
         *app, root->second, {}, true, entry.available, runtime_ != nullptr};
