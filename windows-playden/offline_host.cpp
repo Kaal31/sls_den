@@ -5,6 +5,9 @@
 #include "homebrew/simulation.hpp"
 #include "sls/provider_preferences.h"
 #include "sls/provider_discovery.h"
+#ifdef PLAYDEN_WINDOWS_PUBLIC_CATALOG
+#include "sls/steam_catalog_worker.h"
+#endif
 #include "gfx/gl.hpp"
 #include "gfx/gl_program.hpp"
 #define SDL_MAIN_HANDLED
@@ -154,6 +157,13 @@ int main(int argc,char** argv){
    else
      simulation.SetSlsSourcePreferencePath(startup_log.parent_path()/"sources.ini");
  }
+#endif
+#ifdef PLAYDEN_WINDOWS_PUBLIC_CATALOG
+ // The online preview uses only public, unauthenticated catalogue lookup.
+ // All installs, launches and ownership states remain simulated.
+ std::optional<playden::sls::SteamCatalogWorker> catalog_worker;
+ if(!options.self_test && !options.navigation_test && !options.headless)
+   catalog_worker.emplace("");
 #endif
  if(!options.scenario.empty()&&!simulation.scenario(options.scenario)){
    std::fprintf(stderr,"Unknown scenario: %s\n",options.scenario.c_str());
@@ -816,6 +826,17 @@ int main(int argc,char** argv){
      const float dt=std::chrono::duration<float>(now-prev).count();
      prev=now;
      SDL_GL_GetDrawableSize(window,&options.width,&options.height);
+#ifdef PLAYDEN_WINDOWS_PUBLIC_CATALOG
+     if(catalog_worker) {
+       if(auto query=simulation.TakeSteamCatalogSearchRequest()) {
+         catalog_worker->Search(*query);
+       }
+       if(auto result=catalog_worker->Poll()) {
+         if(result->ok) simulation.UpdateSteamCatalogResults(result->query,std::move(result->page));
+         else simulation.FailSteamCatalogSearch(result->query);
+       }
+     }
+#endif
      simulation.tick();
      renderer.draw(simulation,options.width,options.height,
          std::clamp(dt,0.001f,0.1f));
