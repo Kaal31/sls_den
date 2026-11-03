@@ -185,6 +185,11 @@ target_link_libraries(playden_runtime_session_reconciler PUBLIC playden_runtime_
     PRIVATE playden_steam_protocol)
 
 if(WIN32 AND PLAYDEN_WINDOWS_OFFLINE_ONLY)
+    set(playden_local_copy_plan_source "${CMAKE_SOURCE_DIR}/windows-playden/copy_plan_windows.cpp")
+else()
+    set(playden_local_copy_plan_source "${CMAKE_SOURCE_DIR}/src/stores/local/copy_plan.cpp")
+endif()
+if(WIN32 AND PLAYDEN_WINDOWS_OFFLINE_ONLY)
     set(playden_drop_folder_access_source "${CMAKE_SOURCE_DIR}/windows-playden/drop_folder_access_windows.cpp")
 else()
     set(playden_drop_folder_access_source "${CMAKE_SOURCE_DIR}/src/stores/local/drop_folder_access.cpp")
@@ -196,7 +201,7 @@ add_library(playden_local_store STATIC
     "${CMAKE_SOURCE_DIR}/src/stores/local/import_store.cpp"
     "${CMAKE_SOURCE_DIR}/src/stores/local/library_source.cpp"
 ${playden_drop_folder_access_source}
-    "${CMAKE_SOURCE_DIR}/src/stores/local/copy_plan.cpp")
+    ${playden_local_copy_plan_source})
 target_include_directories(playden_local_store PUBLIC "${CMAKE_SOURCE_DIR}/src")
 target_compile_features(playden_local_store PUBLIC cxx_std_17)
 if(PLAYDEN_PLATFORM_PS5)
