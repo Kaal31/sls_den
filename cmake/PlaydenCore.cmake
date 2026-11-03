@@ -358,7 +358,16 @@ if(BUILD_TESTING AND NOT PLAYDEN_PLATFORM_PS5)
     endforeach()
 endif()
 
-add_library(playden_title_activity STATIC "${CMAKE_SOURCE_DIR}/src/platform/ps5/title_activity.cpp"
+if(WIN32 AND PLAYDEN_WINDOWS_OFFLINE_ONLY)
+    set(playden_title_activity_source "${CMAKE_SOURCE_DIR}/windows-playden/ps5_native_services_windows.cpp")
+    set(playden_title_mutation_sources "")
+else()
+    set(playden_title_activity_source "${CMAKE_SOURCE_DIR}/src/platform/ps5/title_activity.cpp")
+    set(playden_title_mutation_sources
+        "${CMAKE_SOURCE_DIR}/src/platform/ps5/title_remover.cpp"
+        "${CMAKE_SOURCE_DIR}/src/platform/ps5/title_allow_list.cpp")
+endif()
+add_library(playden_title_activity STATIC ${playden_title_activity_source}
     "${CMAKE_SOURCE_DIR}/src/platform/ps5/title_runtime.cpp")
 target_include_directories(playden_title_activity PUBLIC "${CMAKE_SOURCE_DIR}/src")
 target_compile_features(playden_title_activity PUBLIC cxx_std_17)
@@ -406,8 +415,7 @@ else()
     set(playden_native_coordinator_source "${CMAKE_SOURCE_DIR}/src/platform/ps5/native_coordinator.cpp")
 endif()
 add_library(playden_native_coordinator STATIC ${playden_native_coordinator_source}
-    "${CMAKE_SOURCE_DIR}/src/platform/ps5/title_registry.cpp" "${CMAKE_SOURCE_DIR}/src/platform/ps5/title_remover.cpp"
-    "${CMAKE_SOURCE_DIR}/src/platform/ps5/title_allow_list.cpp")
+    "${CMAKE_SOURCE_DIR}/src/platform/ps5/title_registry.cpp" ${playden_title_mutation_sources})
 target_include_directories(playden_native_coordinator PUBLIC "${CMAKE_SOURCE_DIR}/src")
 target_compile_features(playden_native_coordinator PUBLIC cxx_std_17)
 target_link_libraries(playden_native_coordinator PUBLIC playden_runtime_install_service playden_title_database
