@@ -400,7 +400,12 @@ endif()
 add_library(playden_publication_transaction STATIC "${CMAKE_SOURCE_DIR}/src/runtime/publication_transaction.cpp")
 target_include_directories(playden_publication_transaction PUBLIC "${CMAKE_SOURCE_DIR}/src")
 target_compile_features(playden_publication_transaction PUBLIC cxx_std_17)
-add_library(playden_native_coordinator STATIC "${CMAKE_SOURCE_DIR}/src/platform/ps5/native_coordinator.cpp"
+if(WIN32 AND PLAYDEN_WINDOWS_OFFLINE_ONLY)
+    set(playden_native_coordinator_source "${CMAKE_SOURCE_DIR}/windows-playden/native_coordinator_windows.cpp")
+else()
+    set(playden_native_coordinator_source "${CMAKE_SOURCE_DIR}/src/platform/ps5/native_coordinator.cpp")
+endif()
+add_library(playden_native_coordinator STATIC ${playden_native_coordinator_source}
     "${CMAKE_SOURCE_DIR}/src/platform/ps5/title_registry.cpp" "${CMAKE_SOURCE_DIR}/src/platform/ps5/title_remover.cpp"
     "${CMAKE_SOURCE_DIR}/src/platform/ps5/title_allow_list.cpp")
 target_include_directories(playden_native_coordinator PUBLIC "${CMAKE_SOURCE_DIR}/src")
