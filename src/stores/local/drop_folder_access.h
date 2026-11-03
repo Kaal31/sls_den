@@ -23,6 +23,7 @@
 #include "runtime/writable_folders.h"
 
 #include <cstddef>
+#include <cstdint>
 #include <filesystem>
 #include <functional>
 #include <optional>
@@ -40,7 +41,7 @@ struct DropFolderAccessOptions {
   // Prepended to the console paths walked (a host test's namespace); messages name console paths.
   std::filesystem::path namespace_root = "/";
   // Entries this user owns are changed without root. Default: the effective UID at the call.
-  std::optional<uid_t> app_uid;
+  std::optional<std::uint32_t> app_uid;
   // Root-owned entries changed in one raise.
   std::size_t batch = 64;
 };
