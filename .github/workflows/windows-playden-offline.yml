@@ -16,12 +16,13 @@ on:
       - '.github/workflows/windows-playden-offline.yml'
   workflow_dispatch:
 concurrency:
-  group: playden-offline-${{ github.ref }}
+  group: playden-windows-app-${{ github.ref }}
   cancel-in-progress: true
 permissions:
   contents: read
 jobs:
-  offline:
+  windows-application:
+    name: Windows UI previews and full host
     runs-on: windows-2022
     timeout-minutes: 60
     steps:
@@ -36,14 +37,14 @@ jobs:
         with:
           path: ${{ github.workspace }}/.vcpkg-bincache
           key: windows-offline-vcpkg-sdl2-opengl-mbedtls-curl-glew-v3
-      - name: Install offline GUI and crypto dependencies
+      - name: Install Windows GUI and crypto dependencies
         shell: pwsh
         env:
           VCPKG_BINARY_SOURCES: clear;files,${{ github.workspace }}/.vcpkg-bincache,readwrite
         run: |
           New-Item -ItemType Directory -Force .vcpkg-bincache | Out-Null
           C:\vcpkg\vcpkg.exe install sdl2:x64-windows opengl-registry:x64-windows mbedtls:x64-windows curl[websockets]:x64-windows glew:x64-windows
-      - name: Configure Windows simulated Playden and public-online catalogue targets
+      - name: Configure Windows UI previews and shared host target
         shell: pwsh
         run: |
           cmake -S . -B build/windows-offline -G Ninja -DCMAKE_MAKE_PROGRAM=ninja -DCMAKE_C_COMPILER=clang-cl -DCMAKE_CXX_COMPILER=clang-cl -DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake -DBUILD_TESTING=OFF -DPLAYDEN_PLATFORM_PS5=OFF -DPLAYDEN_WINDOWS_OFFLINE_ONLY=ON -DCMAKE_BUILD_TYPE=Release -DCMAKE_EXPORT_COMPILE_COMMANDS=ON 2>&1 | Tee-Object windows-playden/offline-configure.log
@@ -54,7 +55,7 @@ jobs:
           python windows-playden/audit_windows_posix.py build/windows-offline/compile_commands.json |
             Tee-Object windows-playden/windows-posix-audit.log
           if ($LASTEXITCODE -ne 0) { throw "Windows POSIX dependency inventory failed" }
-      - name: Build offline simulation and public-online catalogue preview
+      - name: Build simulated UI and public Steam catalogue preview
         shell: pwsh
         run: |
           cmake --build build/windows-offline --target playden-windows-offline playden-windows-online --parallel 3 2>&1 | Tee-Object windows-playden/offline-compile.log
