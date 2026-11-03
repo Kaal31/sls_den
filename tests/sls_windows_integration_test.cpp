@@ -58,8 +58,10 @@ int main() {
             "addappid(999)\nsetManifestid(999, \"3333\")\n";
       return true;
     },granted);
-  require(injected.depots.size()==1 && injected.depots[0].id==410 &&
-          injected.depots[0].manifest_gid==1111,
-          "unentitled depot excluded; native Steam manifest retained");
+  require(injected.status=="unowned-depot" &&
+          injected.depots.size()==granted.size() &&
+          injected.depots[0].id==420 && injected.depots[0].manifest_gid==2222 &&
+          injected.depots[1].id==410 && injected.depots[1].manifest_gid==1111,
+          "unauthorized provider plan rejected; complete Steam-authorized depot list retained");
   std::cout<<"PASS: provider fallback, disabled isolation and authorized plan\n";
 }
