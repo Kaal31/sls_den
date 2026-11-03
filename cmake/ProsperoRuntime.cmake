@@ -15,8 +15,15 @@ if(NOT prospero_source_check_result STREQUAL "0")
     message(FATAL_ERROR "${prospero_source_check_error}\nInitialize third_party/prospero-win or select a clean checkout at the locked revision.")
 endif()
 
+if(WIN32)
+    set(playden_publication_native_source
+        "${CMAKE_SOURCE_DIR}/windows-playden/title_publication_native_windows.c")
+else()
+    set(playden_publication_native_source
+        "${PLAYDEN_PROSPERO_SOURCE_DIR}/native/pw_title_publication_native.c")
+endif()
 add_library(playden_runtime_publication_verifier STATIC
-    "${PLAYDEN_PROSPERO_SOURCE_DIR}/native/pw_title_publication_native.c"
+    ${playden_publication_native_source}
     "${PLAYDEN_PROSPERO_SOURCE_DIR}/src/pw_title_publication.c"
     "${PLAYDEN_PROSPERO_SOURCE_DIR}/src/pw_title_launch.c"
     "${PLAYDEN_PROSPERO_SOURCE_DIR}/src/pw_game_profile.c"
