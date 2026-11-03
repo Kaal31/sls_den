@@ -88,6 +88,32 @@ int main(){
        "vetted fix accepts matching original contents");
  check(playden::sls::RemoveCuratedGameFix(authorized,guarded)==FixResult::Restored,
        "guarded fix can be reversed");
+ {
+   using namespace playden::sls;
+   auto denied=LocalConfigFileFixAdapter();
+   denied.capabilities.config_files=false;
+   int called=0;
+   denied.apply_config=[&](const fs::path&,const fs::path&,std::string_view) {
+     ++called; return FixResult::Applied;
+   };
+   check(ApplyCuratedGameFixWithAdapter(authorized,vetted,denied)==FixResult::UnsafePath &&
+         called==0,"unsupported host capability blocks fix before callbacks");
+   auto allowed=LocalConfigFileFixAdapter();
+   allowed.apply_config=[&](const fs::path& base,const fs::path& path,std::string_view bytes) {
+     ++called; return ApplyConfigFix(base,path,bytes);
+   };
+   check(ApplyCuratedGameFixWithAdapter(authorized,vetted,allowed)==FixResult::Applied &&
+         called==1,"platform adapter applies vetted config fix");
+   check(RemoveCuratedGameFixWithAdapter(authorized,vetted,denied)==FixResult::UnsafePath,
+         "capability also blocks Unfix");
+   check(RemoveCuratedGameFixWithAdapter(authorized,vetted,allowed)==FixResult::Restored,
+         "platform adapter reverses change");
+   auto unsupported_operation=vetted;
+   unsupported_operation.operation=FixOperation::Proton;
+   check(!ValidCuratedDefinition(unsupported_operation) &&
+         ApplyCuratedGameFixWithAdapter(authorized,unsupported_operation,allowed)==FixResult::UnsafePath,
+         "unsupported fix operations cannot be silently treated as config edits");
+ }
  check(playden::sls::ApplyCuratedGameFix(authorized,vetted)==FixResult::Applied,"curated fix applies to verified game");
  auto upgraded=authorized;upgraded.version="2.0";
  check(playden::sls::InspectConfigFix(root,vetted.relative_path)==FixResult::Applied,"fix remains present after version changes");
