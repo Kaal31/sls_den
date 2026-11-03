@@ -8,6 +8,7 @@
 #include <cctype>
 #include <filesystem>
 #include <fstream>
+#include <functional>
 #include <iterator>
 #include <string>
 #include <string_view>
@@ -16,6 +17,42 @@
 namespace playden::sls {
 enum class GameFixAvailability { Available, NotInstalled, StorageUnavailable,
                                  RuntimeUnsupported, NoDefinitions, VersionMismatch };
+// Shared capability contract. Providers describe fixes but never grant a host
+// permission to write files. Windows and PS5 supply their own vetted adapters.
+enum class FixOperation { ConfigFile, IniEdit, FileReplacement, WineRegistry, Proton, Dxvk };
+struct FixCapabilities {
+    bool config_files = false;
+    bool ini_editing = false;
+    bool file_replacement = false;
+    bool wine_registry = false;
+    bool proton = false;
+    bool dxvk = false;
+    bool Supports(FixOperation operation) const {
+        switch (operation) {
+          case FixOperation::ConfigFile: return config_files;
+          case FixOperation::IniEdit: return ini_editing;
+          case FixOperation::FileReplacement: return file_replacement;
+          case FixOperation::WineRegistry: return wine_registry;
+          case FixOperation::Proton: return proton;
+          case FixOperation::Dxvk: return dxvk;
+        }
+        return false;
+    }
+};
+struct FixApplicationAdapter {
+    FixCapabilities capabilities;
+    // Called only after shared installation, version and expected-byte checks.
+    std::function<FixResult(const std::filesystem::path&, const std::filesystem::path&,
+                            std::string_view)> apply_config;
+    std::function<FixResult(const std::filesystem::path&, const std::filesystem::path&)> restore_config;
+};
+inline FixApplicationAdapter LocalConfigFileFixAdapter() {
+    FixApplicationAdapter adapter;
+    adapter.capabilities.config_files = true;
+    adapter.apply_config = ApplyConfigFix;
+    adapter.restore_config = RestoreConfigFix;
+    return adapter;
+}
 struct CuratedConfigFix {
     std::uint32_t steam_app_id = 0;
     std::string id;
@@ -25,6 +62,7 @@ struct CuratedConfigFix {
     std::string installed_version; // exact match when specified
     std::string expected_original; // optional exact contents, checked before first Apply
     std::string source_id = "local"; // source identity is not executable trust
+    FixOperation operation = FixOperation::ConfigFile; // default preserves existing catalogues
 };
 struct VerifiedGameRoot {
     std::uint32_t app_id = 0;
@@ -37,6 +75,8 @@ struct VerifiedGameRoot {
 // Reject ambiguous identifiers and unsafe catalogue metadata before displaying
 // or attempting an operation. This is additional to filesystem containment checks.
 inline bool ValidCuratedDefinition(const CuratedConfigFix& def) {
+    // Only config-file operations have an audited shared apply contract today.
+    if (def.operation != FixOperation::ConfigFile) return false;
     if (!def.steam_app_id || !KnownFixSource(def.source_id) ||
         def.id.empty() || def.id.size()>64 ||
         def.title.empty() || def.title.size()>128 ||
@@ -66,8 +106,10 @@ inline GameFixAvailability CheckGameFixAvailability(
     }
     return found ? GameFixAvailability::VersionMismatch : GameFixAvailability::NoDefinitions;
 }
-inline FixResult ApplyCuratedGameFix(const VerifiedGameRoot& game,
-                                     const CuratedConfigFix& def) {
+inline FixResult ApplyCuratedGameFixWithAdapter(const VerifiedGameRoot& game,
+                                     const CuratedConfigFix& def, const FixApplicationAdapter& adapter) {
+    if (!adapter.capabilities.Supports(def.operation) || !adapter.apply_config)
+        return FixResult::UnsafePath;
     if (def.steam_app_id != game.app_id || !ValidCuratedDefinition(def) ||
         (def.installed_version.size() && def.installed_version != game.version) ||
         CheckGameFixAvailability(game, {def}) != GameFixAvailability::Available)
@@ -88,15 +130,23 @@ inline FixResult ApplyCuratedGameFix(const VerifiedGameRoot& game,
                                    std::istreambuf_iterator<char>());
         if (current != def.expected_original) return FixResult::Conflict;
     }
-    return ApplyConfigFix(game.root, def.relative_path, def.replacement);
+    return adapter.apply_config(game.root, def.relative_path, def.replacement);
 }
-inline FixResult RemoveCuratedGameFix(const VerifiedGameRoot& game,
-                                      const CuratedConfigFix& def) {
+inline FixResult ApplyCuratedGameFix(const VerifiedGameRoot& game, const CuratedConfigFix& def) {
+    return ApplyCuratedGameFixWithAdapter(game, def, LocalConfigFileFixAdapter());
+}
+inline FixResult RemoveCuratedGameFixWithAdapter(const VerifiedGameRoot& game,
+                                      const CuratedConfigFix& def, const FixApplicationAdapter& adapter) {
+    if (!adapter.capabilities.Supports(def.operation) || !adapter.restore_config)
+        return FixResult::UnsafePath;
     std::error_code ec;
     if (def.steam_app_id != game.app_id || !ValidCuratedDefinition(def) ||
         !game.installed || !game.volume_available || !game.runtime_supported ||
         game.root.empty() || !std::filesystem::is_directory(game.root,ec) || ec)
         return FixResult::UnsafePath;
-    return RestoreConfigFix(game.root, def.relative_path);
+    return adapter.restore_config(game.root, def.relative_path);
+}
+inline FixResult RemoveCuratedGameFix(const VerifiedGameRoot& game, const CuratedConfigFix& def) {
+    return RemoveCuratedGameFixWithAdapter(game, def, LocalConfigFileFixAdapter());
 }
 } // namespace playden::sls
