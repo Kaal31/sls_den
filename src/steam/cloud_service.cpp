@@ -10,6 +10,7 @@
 #endif
 
 #include <algorithm>
+#include <cstdint>
 #include <chrono>
 #include <cstdio>
 #include <cstdlib>
@@ -441,6 +442,27 @@ void CloudService::Run() {
     }
     if (request.kind == Kind::kRestore) {
       std::vector<std::pair<GameId, CloudReport>> restored;
+#ifdef _WIN32
+      namespace fs=std::filesystem;
+      std::error_code scan_error;
+      const fs::path saves=fs::u8path(request.saves_root);
+      if(fs::is_directory(saves,scan_error) && !scan_error &&
+         !fs::is_symlink(fs::symlink_status(saves,scan_error)) && !scan_error) {
+        for(fs::directory_iterator it(saves,fs::directory_options::none,scan_error),last;
+            !scan_error && it!=last;it.increment(scan_error)) {
+          const auto status=it->symlink_status(scan_error);
+          if(scan_error || !fs::is_directory(status) || fs::is_symlink(status))break;
+          const auto raw=it->path().filename().u8string();
+          const std::string name(raw.begin(),raw.end());
+          char* end=nullptr;
+          const auto id=std::strtoull(name.c_str(),&end,10);
+          if(id==0 || id>UINT32_MAX || !end || *end!='\\0')continue;
+          const auto bytes=(it->path().u8string());
+          if(auto report=LoadStatus(std::string(bytes.begin(),bytes.end())))
+            restored.emplace_back(GameId::Steam(static_cast<std::uint32_t>(id)),std::move(*report));
+        }
+      }
+#else
       if (DIR* directory = opendir(request.saves_root.c_str())) {
         while (dirent* entry = readdir(directory)) {
           char* end = nullptr;
@@ -451,6 +473,7 @@ void CloudService::Run() {
         }
         closedir(directory);
       }
+#endif
       std::lock_guard<std::mutex> lock(mutex_);
       for (auto& [id, report] : restored) {
         // Only games this run knows nothing about yet; a result from this run is newer.
