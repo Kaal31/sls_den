@@ -186,7 +186,12 @@ endif()
 
 # "Copy into Playden" for imported games: the install service's runner for Store::kLocal (it
 # removes partial copies with the depot installer's RemoveManagedInstall).
-add_library(playden_local_copy STATIC "${CMAKE_SOURCE_DIR}/src/stores/local/copy_runner.cpp")
+if(WIN32 AND PLAYDEN_WINDOWS_OFFLINE_ONLY)
+    set(playden_local_copy_source "${CMAKE_SOURCE_DIR}/windows-playden/local_copy_runner_windows.cpp")
+else()
+    set(playden_local_copy_source "${CMAKE_SOURCE_DIR}/src/stores/local/copy_runner.cpp")
+endif()
+add_library(playden_local_copy STATIC ${playden_local_copy_source})
 target_include_directories(playden_local_copy PUBLIC "${CMAKE_SOURCE_DIR}/src")
 target_compile_features(playden_local_copy PUBLIC cxx_std_17)
 target_link_libraries(playden_local_copy PUBLIC playden_local_store playden_steam_cm playden_steam_core)
