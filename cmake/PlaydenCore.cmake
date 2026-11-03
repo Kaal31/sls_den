@@ -356,7 +356,12 @@ add_library(playden_sqlite_reader STATIC "${CMAKE_SOURCE_DIR}/third_party/sqlite
 target_include_directories(playden_sqlite_reader PUBLIC "${CMAKE_SOURCE_DIR}/third_party/sqlite3")
 target_compile_definitions(playden_sqlite_reader PRIVATE SQLITE_OMIT_LOAD_EXTENSION=1 SQLITE_THREADSAFE=0
     SQLITE_TEMP_STORE=3 SQLITE_MAX_MMAP_SIZE=0 SQLITE_USE_URI=0)
-add_library(playden_title_database STATIC "${CMAKE_SOURCE_DIR}/src/platform/ps5/title_database.cpp"
+if(WIN32)
+    set(playden_title_database_source "${CMAKE_SOURCE_DIR}/windows-playden/title_database_windows.cpp")
+else()
+    set(playden_title_database_source "${CMAKE_SOURCE_DIR}/src/platform/ps5/title_database.cpp")
+endif()
+add_library(playden_title_database STATIC ${playden_title_database_source}
     "${CMAKE_SOURCE_DIR}/src/platform/ps5/title_runtime.cpp")
 target_include_directories(playden_title_database PUBLIC "${CMAKE_SOURCE_DIR}/src")
 target_compile_features(playden_title_database PUBLIC cxx_std_17)
