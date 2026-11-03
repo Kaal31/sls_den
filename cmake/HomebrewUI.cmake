@@ -261,8 +261,13 @@ target_link_libraries(playden_homebrew_controller PUBLIC
     playden_homebrew_runtime_host playden_self_update playden_local_store)
 
 # Worker-owned per-game runtime composition (OWNER records, native inventory, kit layer).
+if(WIN32 AND PLAYDEN_WINDOWS_OFFLINE_ONLY)
+    set(playden_writable_folders_source "${CMAKE_SOURCE_DIR}/windows-playden/writable_folders_windows.cpp")
+else()
+    set(playden_writable_folders_source "${CMAKE_SOURCE_DIR}/src/runtime/writable_folders.cpp")
+endif()
 add_library(playden_homebrew_runtime_host STATIC "${CMAKE_SOURCE_DIR}/src/homebrew/runtime_host.cpp"
-    "${CMAKE_SOURCE_DIR}/src/runtime/writable_folders.cpp")
+    ${playden_writable_folders_source})
 target_compile_features(playden_homebrew_runtime_host PUBLIC cxx_std_20)
 target_include_directories(playden_homebrew_runtime_host PUBLIC "${CMAKE_SOURCE_DIR}/src")
 target_link_libraries(playden_homebrew_runtime_host PUBLIC playden_native_coordinator playden_runtime_settings_publication
