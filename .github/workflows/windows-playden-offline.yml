@@ -46,8 +46,14 @@ jobs:
       - name: Configure Windows simulated Playden and public-online catalogue targets
         shell: pwsh
         run: |
-          cmake -S . -B build/windows-offline -G Ninja -DCMAKE_MAKE_PROGRAM=ninja -DCMAKE_C_COMPILER=clang-cl -DCMAKE_CXX_COMPILER=clang-cl -DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake -DBUILD_TESTING=OFF -DPLAYDEN_PLATFORM_PS5=OFF -DPLAYDEN_WINDOWS_OFFLINE_ONLY=ON -DCMAKE_BUILD_TYPE=Release 2>&1 | Tee-Object windows-playden/offline-configure.log
+          cmake -S . -B build/windows-offline -G Ninja -DCMAKE_MAKE_PROGRAM=ninja -DCMAKE_C_COMPILER=clang-cl -DCMAKE_CXX_COMPILER=clang-cl -DCMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake -DBUILD_TESTING=OFF -DPLAYDEN_PLATFORM_PS5=OFF -DPLAYDEN_WINDOWS_OFFLINE_ONLY=ON -DCMAKE_BUILD_TYPE=Release -DCMAKE_EXPORT_COMPILE_COMMANDS=ON 2>&1 | Tee-Object windows-playden/offline-configure.log
           if ($LASTEXITCODE -ne 0) { throw "Windows offline Playden configure failed" }
+      - name: Inventory Unix-only dependencies in configured Windows sources
+        shell: pwsh
+        run: |
+          python windows-playden/audit_windows_posix.py build/windows-offline/compile_commands.json |
+            Tee-Object windows-playden/windows-posix-audit.log
+          if ($LASTEXITCODE -ne 0) { throw "Windows POSIX dependency inventory failed" }
       - name: Build offline simulation and public-online catalogue preview
         shell: pwsh
         run: |
