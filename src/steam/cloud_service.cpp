@@ -451,12 +451,13 @@ void CloudService::Run() {
         for(fs::directory_iterator it(saves,fs::directory_options::none,scan_error),last;
             !scan_error && it!=last;it.increment(scan_error)) {
           const auto status=it->symlink_status(scan_error);
-          if(scan_error || !fs::is_directory(status) || fs::is_symlink(status))break;
+          if(scan_error)break;
+          if(!fs::is_directory(status) || fs::is_symlink(status))continue;
           const auto raw=it->path().filename().u8string();
           const std::string name(raw.begin(),raw.end());
           char* end=nullptr;
           const auto id=std::strtoull(name.c_str(),&end,10);
-          if(id==0 || id>UINT32_MAX || !end || *end!='\\0')continue;
+          if(id==0 || id>UINT32_MAX || !end || *end!='\0')continue;
           const auto bytes=(it->path().u8string());
           if(auto report=LoadStatus(std::string(bytes.begin(),bytes.end())))
             restored.emplace_back(GameId::Steam(static_cast<std::uint32_t>(id)),std::move(*report));
