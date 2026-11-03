@@ -56,13 +56,19 @@ target_include_directories(playden_storage PUBLIC "${CMAKE_SOURCE_DIR}/src")
 target_compile_features(playden_storage PUBLIC cxx_std_17)
 target_link_libraries(playden_library PUBLIC playden_storage)
 
+if(WIN32)
+    set(playden_install_volumes_source "${CMAKE_SOURCE_DIR}/windows-playden/install_volumes_windows.cpp")
+else()
+    set(playden_install_volumes_source "${CMAKE_SOURCE_DIR}/src/steam/install_volumes.cpp")
+endif()
+
 add_library(playden_steam_core STATIC
     "${CMAKE_SOURCE_DIR}/src/steam/session_store.cpp"
     "${CMAKE_SOURCE_DIR}/src/steam/service.cpp"
     "${CMAKE_SOURCE_DIR}/src/steam/app_details_service.cpp"
     "${CMAKE_SOURCE_DIR}/src/steam/store_details_service.cpp"
     "${CMAKE_SOURCE_DIR}/src/installs/install_service.cpp"
-    "${CMAKE_SOURCE_DIR}/src/steam/install_volumes.cpp"
+    ${playden_install_volumes_source}
     "${CMAKE_SOURCE_DIR}/src/steam/cloud_service.cpp")
 target_include_directories(playden_steam_core PUBLIC "${CMAKE_SOURCE_DIR}/src")
 target_compile_features(playden_steam_core PUBLIC cxx_std_17)
