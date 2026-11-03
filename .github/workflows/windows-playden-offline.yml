@@ -1,4 +1,4 @@
-name: Windows Real Playden Offline UI
+name: Windows Application Build and UI
 on:
   push:
     branches: [windows-preview]
@@ -10,10 +10,9 @@ on:
       - 'src/platform/**'
       - 'src/app/**'
       - 'src/steam/**'
-      - 'cmake/HomebrewUI.cmake'
-      - 'cmake/PlaydenCore.cmake'
-      - 'cmake/ProsperoRuntime.cmake'
-      - 'cmake/SteamBackend.cmake'
+      - 'src/stores/**'
+      - '.github/workflows/windows-playden-cmake.yml'
+      - 'cmake/**'
       - '.github/workflows/windows-playden-offline.yml'
   workflow_dispatch:
 concurrency:
@@ -24,7 +23,7 @@ permissions:
 jobs:
   offline:
     runs-on: windows-2022
-    timeout-minutes: 35
+    timeout-minutes: 60
     steps:
       - name: Preserve exact pinned source contents
         shell: pwsh
@@ -180,10 +179,21 @@ jobs:
         with:
           name: playden-windows-public-store-online
           path: windows-playden/online-dist/**
+      - name: Compile full shared Playden host (portability gate)
+        shell: pwsh
+        run: |
+          # Same configured toolchain and cached dependencies as the UI build.
+          # Does not enable --live-network or publish PS5 titles.
+          cmake --build build/windows-offline --target playden-homebrew --parallel 2 2>&1 |
+            Tee-Object windows-playden/full-host-build.log
+          if ($LASTEXITCODE -ne 0) {
+            throw "Shared host compile failed; inspect full-host-build.log for the next portability error"
+          }
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: windows-playden-offline-build-logs
           path: |
             windows-playden/offline-*.log
+            windows-playden/full-host-build.log
             windows-playden/offline-dll-dependencies.txt
