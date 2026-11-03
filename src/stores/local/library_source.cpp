@@ -3,8 +3,11 @@
 #include "stores/local/copy_plan.h"
 
 #include <cerrno>
+#include <filesystem>
+#if !defined(_WIN32)
 #include <dirent.h>
 #include <sys/stat.h>
+#endif
 
 #include <algorithm>
 #include <utility>
@@ -19,13 +22,22 @@ std::string Join(const std::string& base, const std::string& relative) {
 }
 
 bool IsFolder(const std::string& path) {
+#if defined(_WIN32)
+  std::error_code error;
+  return std::filesystem::is_directory(std::filesystem::u8path(path), error) && !error;
+#else
   struct stat info {};
   return stat(path.c_str(), &info) == 0 && S_ISDIR(info.st_mode);
+#endif
 }
 
-// The same rule the install volumes use: a drive's folder counts only while a file system other
-// than its parent's is mounted there.
+// Mounted PS5 volumes use Unix device identities. Windows preview volumes
+// require an explicit host-provided presence callback instead.
 bool IsMountPoint(const std::string& path) {
+#if defined(_WIN32)
+  (void)path;
+  return false;
+#else
   struct stat mount {}, parent {};
   const auto slash = path.find_last_of('/');
   if (slash == std::string::npos) return false;
@@ -33,6 +45,7 @@ bool IsMountPoint(const std::string& path) {
   if (lstat(path.c_str(), &mount) != 0 || !S_ISDIR(mount.st_mode) || stat(parent_path.c_str(), &parent) != 0)
     return false;
   return mount.st_dev != parent.st_dev;
+#endif
 }
 
 const char* ProgramWords(ProgramCheck check) {
@@ -436,9 +449,15 @@ void LocalLibrarySource::Execute(const Job& job) {
           // back in place (its folder is in Playden now).
           const auto* volume = Volume(game.volume);
           if (volume && game.volume == ImportStore::kDropFolderVolume && config_.move_into_playden) {
-            struct stat info {};
             const auto source = HostPath(Join(volume->mount, game.folder));
-            if (::lstat(source.c_str(), &info) != 0 && errno == ENOENT) {
+#if defined(_WIN32)
+            std::error_code source_error;
+            const bool source_missing = !std::filesystem::exists(std::filesystem::u8path(source), source_error) && !source_error;
+#else
+            struct stat info {};
+            const bool source_missing = ::lstat(source.c_str(), &info) != 0 && errno == ENOENT;
+#endif
+            if (source_missing) {
               const auto number = job.number_for ? job.number_for(id) : 0u;
               numbered.insert(game.id);
               const auto failure = config_.move_into_playden(game, source, number);
@@ -466,9 +485,31 @@ void LocalLibrarySource::Execute(const Job& job) {
       if (config_.remove_copy_folder)
         for (const auto& volume : service.volumes) {
           if (!volume.available || volume.games_root.empty()) continue;
+          std::vector<std::string> roots;
+#if defined(_WIN32)
+          std::error_code scan_error;
+          std::filesystem::directory_iterator it(std::filesystem::u8path(volume.games_root),
+                                                  std::filesystem::directory_options::none,scan_error), end;
+          if (scan_error) continue;
+          for (; it != end; it.increment(scan_error)) {
+            if (scan_error) break;
+            const auto state = it->symlink_status(scan_error);
+            if (scan_error) break;
+            if (!std::filesystem::is_directory(state) || std::filesystem::is_symlink(state)) continue;
+            const auto name = it->path().filename().u8string();
+            const auto key = ParseKey(name);
+            if (!key || key->store != Store::kLocal || queued(*key) || installed(*key)) continue;
+            const auto game = store_.Find(key->value);
+            if (game && game->state != ImportState::kInPlace) continue;
+            const auto journal = it->path() / kCopyJournalDir;
+            if (std::filesystem::is_directory(journal,scan_error) && !scan_error &&
+                !std::filesystem::is_symlink(journal,scan_error) && !scan_error)
+              roots.push_back(it->path().u8string());
+            scan_error.clear();
+          }
+#else
           DIR* folder = ::opendir(volume.games_root.c_str());
           if (!folder) continue;
-          std::vector<std::string> roots;
           while (const auto* item = ::readdir(folder)) {
             const auto key = ParseKey(item->d_name);
             if (!key || key->store != Store::kLocal || queued(*key) || installed(*key)) continue;
@@ -480,6 +521,7 @@ void LocalLibrarySource::Execute(const Job& job) {
               roots.push_back(root);
           }
           ::closedir(folder);
+#endif
           for (const auto& root : roots) {
             const bool removed = config_.remove_copy_folder(root);
             Log("import copy folder " + std::string(removed ? "removed" : "not removed") + " root=" + root +
