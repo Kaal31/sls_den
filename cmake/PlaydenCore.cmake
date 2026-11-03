@@ -169,9 +169,16 @@ target_include_directories(playden_runtime_launch_service PUBLIC "${CMAKE_SOURCE
 target_compile_features(playden_runtime_launch_service PUBLIC cxx_std_17)
 target_link_libraries(playden_runtime_launch_service PUBLIC playden_runtime_install_service)
 
+if(WIN32 AND PLAYDEN_WINDOWS_OFFLINE_ONLY)
+    set(playden_session_storage_source "${CMAKE_SOURCE_DIR}/windows-playden/session_storage_windows.cpp")
+    set(playden_local_scanner_source "${CMAKE_SOURCE_DIR}/windows-playden/local_scanner_windows.cpp")
+else()
+    set(playden_session_storage_source "${CMAKE_SOURCE_DIR}/src/runtime/session_storage.cpp")
+    set(playden_local_scanner_source "${CMAKE_SOURCE_DIR}/src/stores/local/scanner.cpp")
+endif()
 add_library(playden_runtime_session_reconciler STATIC
     "${CMAKE_SOURCE_DIR}/src/runtime/session_reconciler.cpp"
-    "${CMAKE_SOURCE_DIR}/src/runtime/session_storage.cpp")
+    ${playden_session_storage_source})
 target_include_directories(playden_runtime_session_reconciler PUBLIC "${CMAKE_SOURCE_DIR}/src")
 target_compile_features(playden_runtime_session_reconciler PUBLIC cxx_std_17)
 target_link_libraries(playden_runtime_session_reconciler PUBLIC playden_runtime_install_service playden_storage
@@ -180,7 +187,7 @@ target_link_libraries(playden_runtime_session_reconciler PUBLIC playden_runtime_
 # Windows games imported from a drive or the drop folder: the folder scanner, imports.json and
 # the Local store's library source.
 add_library(playden_local_store STATIC
-    "${CMAKE_SOURCE_DIR}/src/stores/local/scanner.cpp"
+    ${playden_local_scanner_source}
     "${CMAKE_SOURCE_DIR}/src/stores/local/import_store.cpp"
     "${CMAKE_SOURCE_DIR}/src/stores/local/library_source.cpp"
     "${CMAKE_SOURCE_DIR}/src/stores/local/drop_folder_access.cpp"
