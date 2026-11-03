@@ -7,8 +7,6 @@
 #include <algorithm>
 #include <cstdio>
 #include <ctime>
-#include <fcntl.h>
-#include <unistd.h>
 
 namespace playden::stores::local {
 namespace {
