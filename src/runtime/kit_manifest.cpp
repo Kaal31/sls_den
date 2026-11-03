@@ -6,11 +6,17 @@
 #include <algorithm>
 #include <cctype>
 #include <cerrno>
+#if defined(_WIN32)
+#include <fstream>
+#else
 #include <fcntl.h>
+#endif
 #include <map>
 #include <set>
 #include <string>
+#if !defined(_WIN32)
 #include <unistd.h>
+#endif
 #include <system_error>
 
 namespace playden::runtime {
@@ -78,6 +84,16 @@ std::optional<std::string> Read(const fs::path& path, std::size_t limit) {
   if (error || !fs::is_regular_file(status) || fs::is_symlink(status)) return std::nullopt;
   const auto size = fs::file_size(path, error);
   if (error || size > limit) return std::nullopt;
+#if defined(_WIN32)
+  // Windows has native stream support; do not route read-only kit manifests
+  // through the console's POSIX descriptor interface.
+  std::ifstream input(path, std::ios::binary);
+  if (!input) return std::nullopt;
+  std::string result(static_cast<std::size_t>(size), '\0');
+  if (!result.empty() && !input.read(&result[0], static_cast<std::streamsize>(result.size())))
+    return std::nullopt;
+  return result;
+#else
   // POSIX reads: the console's libc lacks the locale support iostreams need.
   const int fd = ::open(path.c_str(), O_RDONLY | O_NOFOLLOW | O_CLOEXEC);
   if (fd < 0) return std::nullopt;
@@ -91,6 +107,7 @@ std::optional<std::string> Read(const fs::path& path, std::size_t limit) {
   }
   ::close(fd);
   return result;
+#endif
 }
 
 const Json* Field(const Json& value, const char* name, Json::Type type) {
