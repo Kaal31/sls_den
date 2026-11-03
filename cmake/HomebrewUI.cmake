@@ -98,8 +98,15 @@ if(BUILD_TESTING AND NOT PLAYDEN_PLATFORM_PS5)
     endforeach()
 endif()
 
+if(WIN32 AND PLAYDEN_WINDOWS_OFFLINE_ONLY)
+    set(playden_settings_publication_journal_source
+        "${CMAKE_SOURCE_DIR}/windows-playden/settings_publication_journal_windows.cpp")
+else()
+    set(playden_settings_publication_journal_source
+        "${CMAKE_SOURCE_DIR}/src/runtime/settings_publication_journal.cpp")
+endif()
 add_library(playden_runtime_settings_publication_journal STATIC
-    "${CMAKE_SOURCE_DIR}/src/runtime/settings_publication_journal.cpp"
+    ${playden_settings_publication_journal_source}
     "${PLAYDEN_PROSPERO_SOURCE_DIR}/src/pw_title_launch.c"
     "${PLAYDEN_PROSPERO_SOURCE_DIR}/src/pw_game_profile.c"
     "${PLAYDEN_PROSPERO_SOURCE_DIR}/src/pw_app_profile.c"
