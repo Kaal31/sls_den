@@ -9,6 +9,7 @@
 #include <filesystem>
 #include <fstream>
 #include <functional>
+#include <functional>
 #include <iterator>
 #include <string>
 #include <string_view>
@@ -53,6 +54,47 @@ inline FixApplicationAdapter LocalConfigFileFixAdapter() {
     adapter.restore_config = RestoreConfigFix;
     return adapter;
 }
+// A shared description is never a platform permission. New operations must
+// be explicitly implemented by the selected host adapter before they can run.
+enum class FixOperation { ConfigFile, IniFile, FileReplacement, WineRegistry, Proton, Dxvk };
+struct FixCapabilities {
+    bool config_files = false;
+    bool ini_editing = false;
+    bool file_replacement = false;
+    bool wine_registry = false;
+    bool proton = false;
+    bool dxvk = false;
+};
+inline bool SupportsFix(const FixCapabilities& capabilities, FixOperation operation) {
+    switch(operation) {
+        case FixOperation::ConfigFile: return capabilities.config_files;
+        case FixOperation::IniFile: return capabilities.ini_editing;
+        case FixOperation::FileReplacement: return capabilities.file_replacement;
+        case FixOperation::WineRegistry: return capabilities.wine_registry;
+        case FixOperation::Proton: return capabilities.proton;
+        case FixOperation::Dxvk: return capabilities.dxvk;
+    }
+    return false;
+}
+// Only bounded config replacement is implemented. Other types remain descriptive
+// until their own validated, reversible executors are available.
+struct FixExecutionAdapter {
+    FixCapabilities capabilities;
+    std::function<FixResult(const std::filesystem::path&,const std::filesystem::path&,
+                            std::string_view)> apply_config;
+    std::function<FixResult(const std::filesystem::path&,const std::filesystem::path&)> restore_config;
+};
+inline FixExecutionAdapter LocalConfigFileFixAdapter() {
+    FixExecutionAdapter adapter;
+    adapter.capabilities.config_files = true;
+    adapter.apply_config = [](const auto& root,const auto& path,std::string_view bytes) {
+        return ApplyConfigFix(root,path,bytes);
+    };
+    adapter.restore_config = [](const auto& root,const auto& path) {
+        return RestoreConfigFix(root,path);
+    };
+    return adapter;
+}
 struct CuratedConfigFix {
     std::uint32_t steam_app_id = 0;
     std::string id;
@@ -62,6 +104,7 @@ struct CuratedConfigFix {
     std::string installed_version; // exact match when specified
     std::string expected_original; // optional exact contents, checked before first Apply
     std::string source_id = "local"; // source identity is not executable trust
+    FixOperation operation = FixOperation::ConfigFile;
     FixOperation operation = FixOperation::ConfigFile; // default preserves existing catalogues
 };
 struct VerifiedGameRoot {
@@ -77,7 +120,7 @@ struct VerifiedGameRoot {
 inline bool ValidCuratedDefinition(const CuratedConfigFix& def) {
     // Only config-file operations have an audited shared apply contract today.
     if (def.operation != FixOperation::ConfigFile) return false;
-    if (!def.steam_app_id || !KnownFixSource(def.source_id) ||
+    if (def.operation != FixOperation::ConfigFile || !def.steam_app_id || !KnownFixSource(def.source_id) ||
         def.id.empty() || def.id.size()>64 ||
         def.title.empty() || def.title.size()>128 ||
         def.replacement.size()>1024*1024 || def.expected_original.size()>1024*1024 || def.relative_path.empty() ||
