@@ -29,7 +29,7 @@ jobs:
       - name: Verify fallback, ownership boundaries and source configuration
         shell: pwsh
         run: |
-          foreach ($case in @('sls_config_fix', 'sls_install_metadata', 'sls_source_resolver', 'sls_authorized_depot_plan', 'sls_source_list', 'sls_manifest_metadata')) {
+          foreach ($case in @('sls_config_fix', 'sls_windows_integration', 'sls_install_metadata', 'sls_source_resolver', 'sls_luatools_auth', 'sls_authorized_depot_plan', 'sls_source_list', 'sls_manifest_metadata')) {
             Write-Host "Testing $case"
             & "./build/windows-sls/${case}.exe"
             if ($LASTEXITCODE -ne 0) { throw "Integration test failed: $case" }
