@@ -1,8 +1,13 @@
 #include "steam/cloud_service.h"
 
+#ifdef _WIN32
+#include <filesystem>
+#include <system_error>
+#else
 #include <dirent.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#endif
 
 #include <algorithm>
 #include <chrono>
@@ -36,8 +41,17 @@ const char* StateName(CloudState state) {
 bool SaveStatus(const std::string& state_root, const CloudReport& report) {
   const char* state = StateName(report.state);
   if (state_root.empty() || !*state) return false;
+#ifdef _WIN32
+  std::error_code directory_error;
+  const auto root=std::filesystem::u8path(state_root);
+  if(!std::filesystem::is_directory(root,directory_error)) {
+    if(directory_error || !std::filesystem::create_directory(root,directory_error) || directory_error)
+      return false;
+  }
+#else
   struct stat info {};
   if (stat(state_root.c_str(), &info) != 0 && mkdir(state_root.c_str(), 0777) != 0) return false;
+#endif
   std::string message = report.message;
   std::replace(message.begin(), message.end(), '\n', ' ');
   std::string text = "version=1\nstate=" + std::string(state) + "\nmessage=" + message +
@@ -96,6 +110,23 @@ std::optional<CloudReport> LoadStatus(const std::string& state_root) {
 }
 
 // Removes a folder tree without following links (the state folder is only ever Playden's files).
+#ifdef _WIN32
+void RemoveTree(const std::string& path, int depth = 0) {
+  namespace fs=std::filesystem;
+  if(depth>32 || path.empty())return;
+  std::error_code ec;
+  const fs::path root=fs::u8path(path);
+  const auto status=fs::symlink_status(root,ec);
+  if(ec || !fs::exists(status) || fs::is_symlink(status))return;
+  if(!fs::is_directory(status)){fs::remove(root,ec);return;}
+  for(fs::directory_iterator it(root,fs::directory_options::none,ec),last;
+      !ec && it!=last;it.increment(ec)) {
+    const auto child=it->path().u8string();
+    RemoveTree(std::string(child.begin(),child.end()),depth+1);
+  }
+  if(!ec)fs::remove(root,ec);
+}
+#else
 void RemoveTree(const std::string& path, int depth = 0) {
   struct stat info {};
   if (depth > 32 || lstat(path.c_str(), &info) != 0) return;
@@ -114,6 +145,7 @@ void RemoveTree(const std::string& path, int depth = 0) {
   }
   rmdir(path.c_str());
 }
+#endif
 
 bool Settled(CloudState state) {
   return state == CloudState::kUpToDate || state == CloudState::kSynced || state == CloudState::kConflict ||
