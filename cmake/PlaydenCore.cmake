@@ -131,10 +131,20 @@ if(PLAYDEN_PLATFORM_PS5)
     target_compile_definitions(playden_managed_directory PRIVATE PLAYDEN_PLATFORM_PS5=1)
 endif()
 
-add_library(playden_runtime_private_directories STATIC "${CMAKE_SOURCE_DIR}/src/runtime/private_directories.cpp")
+if(WIN32)
+    add_library(playden_runtime_private_directories STATIC
+        "${CMAKE_SOURCE_DIR}/windows-playden/private_directories_windows.cpp")
+else()
+    add_library(playden_runtime_private_directories STATIC
+        "${CMAKE_SOURCE_DIR}/src/runtime/private_directories.cpp")
+endif()
 target_include_directories(playden_runtime_private_directories PUBLIC "${CMAKE_SOURCE_DIR}/src")
 target_compile_features(playden_runtime_private_directories PUBLIC cxx_std_17)
 target_link_libraries(playden_runtime_private_directories PUBLIC playden_managed_directory)
+if(WIN32)
+    target_include_directories(playden_runtime_private_directories PRIVATE "${CMAKE_SOURCE_DIR}/windows-playden")
+    target_link_libraries(playden_runtime_private_directories PRIVATE playden_ntfs_security)
+endif()
 
 add_library(playden_runtime_layout_migration STATIC "${CMAKE_SOURCE_DIR}/src/runtime/layout_migration.cpp")
 target_include_directories(playden_runtime_layout_migration PUBLIC "${CMAKE_SOURCE_DIR}/src")
