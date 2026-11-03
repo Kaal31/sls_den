@@ -86,8 +86,16 @@ if(PLAYDEN_PLATFORM_PS5)
     target_compile_options(playden_steam_cm_codec PRIVATE -fno-exceptions -fno-rtti)
 endif()
 
-add_library(playden_runtime_settings_publication STATIC "${CMAKE_SOURCE_DIR}/src/runtime/settings_publication.cpp"
-    "${CMAKE_SOURCE_DIR}/src/runtime/settings_publication_owner.cpp")
+if(WIN32 AND PLAYDEN_WINDOWS_OFFLINE_ONLY)
+    set(playden_settings_publication_sources
+        "${CMAKE_SOURCE_DIR}/windows-playden/settings_publication_windows.cpp"
+        "${CMAKE_SOURCE_DIR}/windows-playden/settings_publication_owner_windows.cpp")
+else()
+    set(playden_settings_publication_sources
+        "${CMAKE_SOURCE_DIR}/src/runtime/settings_publication.cpp"
+        "${CMAKE_SOURCE_DIR}/src/runtime/settings_publication_owner.cpp")
+endif()
+add_library(playden_runtime_settings_publication STATIC ${playden_settings_publication_sources})
 target_include_directories(playden_runtime_settings_publication PUBLIC "${CMAKE_SOURCE_DIR}/src")
 target_compile_features(playden_runtime_settings_publication PUBLIC cxx_std_17)
 target_link_libraries(playden_runtime_settings_publication PUBLIC playden_runtime_settings_publication_journal playden_runtime_publication_verifier playden_steam_cm_codec playden_runtime_install_service)
