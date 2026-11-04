@@ -8,7 +8,9 @@
 #include <thread>
 #if defined(_WIN32)
 #define WIN32_LEAN_AND_MEAN
+#define NOMINMAX
 #include <windows.h>
+#include <direct.h>
 #include <io.h>
 #include <fcntl.h>
 #include <sys/stat.h>
@@ -192,6 +194,15 @@ bool EnsureFileSize(const std::string& path, std::uint64_t size) {
 }
 
 #endif
+
+// Keep the same errno-based empty-directory semantics on both hosts.
+int RemoveEmptyDirectory(const std::string& path) {
+#if defined(_WIN32)
+  return _rmdir(path.c_str());
+#else
+  return ::rmdir(path.c_str());
+#endif
+}
 
 std::uint64_t DefaultFreeBytes(const std::string& path) {
   const auto space = QueryVolumeSpace(path);
@@ -997,7 +1008,7 @@ InstallOutcome DepotInstaller::Run(const StoredSession& session, const InstallTa
   if (!closed || std::rename(temporary.c_str(), record_path.c_str()) != 0)
     return fail(InstallError::kStorage, "cannot write install record");
   std::remove(journal_path.c_str());
-  rmdir(journal_dir.c_str());
+  RemoveEmptyDirectory(journal_dir);
   outcome.error = InstallError::kNone;
   outcome.progress = progress;
   return outcome;
@@ -1034,14 +1045,14 @@ bool RemoveManagedInstall(const std::string& install_root, std::string* failure)
   for (const auto& file : files) std::remove(file.c_str());
   std::sort(directories.begin(), directories.end(),
             [](const std::string& left, const std::string& right) { return left.size() > right.size(); });
-  for (const auto& directory : directories) rmdir(directory.c_str());
+  for (const auto& directory : directories) RemoveEmptyDirectory(directory);
   // Parent folders of recorded files that the manifest did not list explicitly.
   std::vector<std::string> parents;
   for (const auto& file : files)
     for (auto parent = Parent(file); parent.size() > install_root.size(); parent = Parent(parent)) parents.push_back(parent);
   std::sort(parents.begin(), parents.end(),
             [](const std::string& left, const std::string& right) { return left.size() > right.size(); });
-  for (const auto& parent : parents) rmdir(parent.c_str());
+  for (const auto& parent : parents) RemoveEmptyDirectory(parent);
   // Files the list did not cover (Playden's journals, files the game or other tools wrote) go in a walk.
   // The install record goes last: a folder that could not be emptied stays Playden's, so
   // uninstalling it again tries again.
@@ -1059,7 +1070,7 @@ bool RemoveManagedInstall(const std::string& install_root, std::string* failure)
     if (std::remove((install_root + "/" + DepotInstaller::kInstallRecord).c_str()) != 0 && errno != ENOENT) {
       emptied = false;
       error = errno;
-    } else if (rmdir(install_root.c_str()) != 0) {
+    } else if (RemoveEmptyDirectory(install_root) != 0) {
       emptied = false;
       error = errno;
     }
