@@ -11,6 +11,7 @@ on:
       - 'src/app/**'
       - 'src/steam/**'
       - 'src/stores/**'
+      - 'src/update/**'
       - '.github/workflows/windows-playden-cmake.yml'
       - 'cmake/**'
       - '.github/workflows/windows-playden-offline.yml'
