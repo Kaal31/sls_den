@@ -1,3 +1,11 @@
+#if defined(_WIN32)
+// Microsoft's rand_s declaration is gated by _CRT_RAND_S in the CRT.
+#ifndef _CRT_RAND_S
+#define _CRT_RAND_S
+#endif
+#include <cstdlib>
+#endif
+
 #include "steam/backend/cloud_sync.h"
 
 #include "steam/backend/app_info.h"
