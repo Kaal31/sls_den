@@ -4,12 +4,21 @@
 #include "steam/backend/depot_manifest.h"
 #include "steam/backend/gzip.h"
 
+#include <filesystem>
+#if defined(_WIN32)
+#define WIN32_LEAN_AND_MEAN
+#define NOMINMAX
+#include <windows.h>
+#include <sys/stat.h>
+#include <process.h>
+#else
 #include <dirent.h>
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <unistd.h>
 #if !PLAYDEN_PLATFORM_PS5
 #include <sys/time.h>
+#endif
 #endif
 
 #include <mbedtls/sha1.h>
@@ -61,6 +70,29 @@ std::vector<std::uint8_t> Sha1(const std::vector<std::uint8_t>& data) {
   return digest;
 }
 
+#if defined(_WIN32)
+bool IsDirectory(const std::string& path) {
+  std::error_code ec;
+  const auto st=std::filesystem::symlink_status(std::filesystem::u8path(path),ec);
+  return !ec && std::filesystem::is_directory(st) && !std::filesystem::is_symlink(st);
+}
+bool MakeDirectories(const std::string& path) {
+  const auto target=std::filesystem::u8path(path);
+  if(!target.is_absolute())return false;
+  std::filesystem::path partial=target.root_path();
+  for(const auto& part:target.relative_path()){
+    partial/=part;
+    std::error_code ec;
+    auto st=std::filesystem::symlink_status(partial,ec);
+    if(ec==std::errc::no_such_file_or_directory)ec.clear();
+    else if(ec)return false;
+    if(std::filesystem::exists(st)){
+      if(!std::filesystem::is_directory(st)||std::filesystem::is_symlink(st))return false;
+    }else if(!std::filesystem::create_directory(partial,ec)||ec)return false;
+  }
+  return true;
+}
+#else
 bool IsDirectory(const std::string& path) {
   struct stat info {};
   return stat(path.c_str(), &info) == 0 && S_ISDIR(info.st_mode);
@@ -74,6 +106,8 @@ bool MakeDirectories(const std::string& path) {
   return IsDirectory(path) || mkdir(path.c_str(), 0777) == 0 || IsDirectory(path);
 }
 
+#endif
+
 std::string Parent(const std::string& path) {
   const auto slash = path.find_last_of('/');
   return slash == std::string::npos || slash == 0 ? std::string() : path.substr(0, slash);
@@ -82,14 +116,43 @@ std::string Parent(const std::string& path) {
 // Worker threads on the console have small stacks: file buffers live on the heap.
 constexpr std::size_t kReadChunk = 64 * 1024;
 
+// Cross-platform file facts always refuse reparse points on Windows.
+bool RegularFacts(const std::string& path,std::uint64_t* size,std::uint64_t* timestamp) {
+#if defined(_WIN32)
+  const auto wide=std::filesystem::u8path(path).wstring();
+  HANDLE file=CreateFileW(wide.c_str(),FILE_READ_ATTRIBUTES,FILE_SHARE_READ|FILE_SHARE_WRITE,
+      nullptr,OPEN_EXISTING,FILE_FLAG_OPEN_REPARSE_POINT,nullptr);
+  if(file==INVALID_HANDLE_VALUE)return false;
+  BY_HANDLE_FILE_INFORMATION info{};
+  const bool ok=GetFileInformationByHandle(file,&info) &&
+      !(info.dwFileAttributes & (FILE_ATTRIBUTE_REPARSE_POINT|FILE_ATTRIBUTE_DIRECTORY));
+  CloseHandle(file);
+  if(!ok)return false;
+  if(size)*size=(static_cast<std::uint64_t>(info.nFileSizeHigh)<<32)|info.nFileSizeLow;
+  if(timestamp){
+    ULARGE_INTEGER ticks{};
+    ticks.HighPart=info.ftLastWriteTime.dwHighDateTime;
+    ticks.LowPart=info.ftLastWriteTime.dwLowDateTime;
+    *timestamp=ticks.QuadPart>=116444736000000000ULL?
+      (ticks.QuadPart-116444736000000000ULL)/10000000ULL:0;
+  }
+  return true;
+#else
+  struct stat info{};
+  if(stat(path.c_str(),&info)!=0 || !S_ISREG(info.st_mode))return false;
+  if(size)*size=static_cast<std::uint64_t>(info.st_size);
+  if(timestamp)*timestamp=static_cast<std::uint64_t>(info.st_mtime);
+  return true;
+#endif
+}
+
 std::optional<std::vector<std::uint8_t>> ReadFile(const std::string& path, std::uint64_t limit) {
-  struct stat info {};
-  if (stat(path.c_str(), &info) != 0 || !S_ISREG(info.st_mode) || static_cast<std::uint64_t>(info.st_size) > limit)
-    return std::nullopt;
+  std::uint64_t file_size=0;
+  if(!RegularFacts(path,&file_size,nullptr) || file_size>limit)return std::nullopt;
   FILE* file = std::fopen(path.c_str(), "rb");
   if (!file) return std::nullopt;
   std::vector<std::uint8_t> data;
-  data.reserve(static_cast<std::size_t>(info.st_size));
+  data.reserve(static_cast<std::size_t>(file_size));
   std::vector<std::uint8_t> buffer(kReadChunk);
   std::size_t read = 0;
   while ((read = std::fread(buffer.data(), 1, buffer.size(), file)) > 0) {
@@ -126,6 +189,19 @@ void SetModified(const std::string& path, std::uint64_t unix_seconds) {
 #if PLAYDEN_PLATFORM_PS5
   (void)path;
   (void)unix_seconds;
+#elif defined(_WIN32)
+  if(!unix_seconds)return;
+  const auto wide=std::filesystem::u8path(path).wstring();
+  HANDLE file=CreateFileW(wide.c_str(),FILE_WRITE_ATTRIBUTES,FILE_SHARE_READ|FILE_SHARE_WRITE,
+      nullptr,OPEN_EXISTING,FILE_FLAG_OPEN_REPARSE_POINT,nullptr);
+  if(file==INVALID_HANDLE_VALUE)return;
+  const std::uint64_t ticks=unix_seconds*10000000ULL+116444736000000000ULL;
+  FILETIME stamp{static_cast<DWORD>(ticks),static_cast<DWORD>(ticks>>32)};
+  BY_HANDLE_FILE_INFORMATION info{};
+  if(GetFileInformationByHandle(file,&info) &&
+     !(info.dwFileAttributes&(FILE_ATTRIBUTE_DIRECTORY|FILE_ATTRIBUTE_REPARSE_POINT)))
+    SetFileTime(file,nullptr,nullptr,&stamp);
+  CloseHandle(file);
 #else
   if (unix_seconds == 0) return;
   struct timeval times[2] = {{static_cast<time_t>(unix_seconds), 0}, {static_cast<time_t>(unix_seconds), 0}};
@@ -143,9 +219,8 @@ std::string Absolute(const GameSaveLocation& location, const LocalSavePath& loca
 
 // Size and SHA-1 of a file, hashed in chunks so large saves are never held in memory whole.
 std::optional<FileFact> Fingerprint(const std::string& path) {
-  struct stat info {};
-  if (stat(path.c_str(), &info) != 0 || !S_ISREG(info.st_mode)) return std::nullopt;
-  if (static_cast<std::uint64_t>(info.st_size) > kMaxRemoteFileBytes) return std::nullopt;
+  std::uint64_t file_size=0,file_time=0;
+  if(!RegularFacts(path,&file_size,&file_time) || file_size>kMaxRemoteFileBytes)return std::nullopt;
   FILE* file = std::fopen(path.c_str(), "rb");
   if (!file) return std::nullopt;
   mbedtls_sha1_context context;
@@ -167,7 +242,7 @@ std::optional<FileFact> Fingerprint(const std::string& path) {
   if (failed) return std::nullopt;
   fact.present = true;
   fact.size = size;
-  fact.time = static_cast<std::uint64_t>(info.st_mtime);
+  fact.time = file_time;
   return fact;
 }
 
@@ -176,6 +251,24 @@ void Enumerate(const std::string& root, const std::string& relative, bool recurs
                std::vector<std::string>* out) {
   if (depth > 16 || out->size() >= kMaxLocalSaveFiles) return;
   const auto folder = relative.empty() ? root : root + "/" + relative;
+#if defined(_WIN32)
+  std::error_code ec;
+  std::filesystem::directory_iterator it(std::filesystem::u8path(folder),ec),end;
+  if(ec)return;
+  for(;it!=end && out->size()<kMaxLocalSaveFiles;it.increment(ec)){
+    if(ec)break;
+    const auto name=it->path().filename().u8string();
+    if(name=="."||name==".."||name.rfind(".playden",0)==0 ||
+       name.find(".playden-partial")!=std::string::npos)continue;
+    const auto status=it->symlink_status(ec);
+    if(ec){ec.clear();continue;}
+    if(std::filesystem::is_symlink(status))continue;
+    const auto child=relative.empty()?name:relative+"/"+name;
+    if(std::filesystem::is_directory(status)){
+      if(recursive)Enumerate(root,child,recursive,depth+1,out);
+    }else if(std::filesystem::is_regular_file(status))out->push_back(child);
+  }
+#else
   DIR* directory = opendir(folder.c_str());
   if (!directory) return;
   while (dirent* entry = readdir(directory)) {
@@ -194,6 +287,7 @@ void Enumerate(const std::string& root, const std::string& relative, bool recurs
     }
   }
   closedir(directory);
+#endif
 }
 
 struct Baseline {
@@ -258,13 +352,26 @@ std::uint64_t ClientId(const std::string& state_root) {
   // failure aborts Playden. The first Cloud upload, the first caller, crashed here or just after (#35).
   // Any non-zero value works; it only tells Steam which client this is.
   std::uint64_t value = 0;
+#if defined(_WIN32)
+  // CNG is not required for this non-secret local client identifier.
+  unsigned int first=0,second=0;
+  if(rand_s(&first)==0 && rand_s(&second)==0)
+    value=(static_cast<std::uint64_t>(first)<<32)|second;
+#else
   if (const int fd = open("/dev/urandom", O_RDONLY | O_CLOEXEC); fd >= 0) {
     if (read(fd, &value, sizeof(value)) != static_cast<ssize_t>(sizeof(value))) value = 0;
     close(fd);
   }
+#endif
   if (value == 0)
     value = static_cast<std::uint64_t>(std::chrono::system_clock::now().time_since_epoch().count()) ^
-            (static_cast<std::uint64_t>(getpid()) << 48);
+            (static_cast<std::uint64_t>(
+#if defined(_WIN32)
+               _getpid()
+#else
+               getpid()
+#endif
+             ) << 48);
   if (value == 0) value = 1;
   const auto text = std::to_string(value) + "\n";
   WriteFileAtomic(path, std::vector<std::uint8_t>(text.begin(), text.end()));
@@ -285,6 +392,38 @@ std::optional<std::string> TransferUrl(bool https, const std::string& host, cons
   return std::string(https ? "https://" : "http://") + host + path;
 }
 
+#if defined(_WIN32)
+void PruneBackups(const std::string& state_root) {
+  const auto root=std::filesystem::u8path(state_root)/kBackupFolder;
+  std::error_code ec;
+  std::filesystem::directory_iterator it(root,ec),end;
+  if(ec)return;
+  std::vector<std::filesystem::path> backups;
+  for(;it!=end;it.increment(ec)){
+    if(ec)return;
+    const auto st=it->symlink_status(ec);
+    if(ec)return;
+    if(std::filesystem::is_directory(st)&&!std::filesystem::is_symlink(st))
+      backups.push_back(it->path());
+  }
+  std::sort(backups.begin(),backups.end());
+  while(backups.size()>kKeptBackups){
+    // Only own backup subdirectories are eligible. Never traverse reparse points.
+    const auto path=backups.front();
+    bool safe=true;
+    std::filesystem::recursive_directory_iterator walk(path,
+        std::filesystem::directory_options::none,ec),last;
+    if(ec)safe=false;
+    for(;safe&&walk!=last;walk.increment(ec)){
+      if(ec){safe=false;break;}
+      const auto st=walk->symlink_status(ec);
+      if(ec || std::filesystem::is_symlink(st)){safe=false;break;}
+    }
+    if(safe)std::filesystem::remove_all(path,ec);
+    backups.erase(backups.begin());
+  }
+}
+#else
 void PruneBackups(const std::string& state_root) {
   std::vector<std::string> names;
   const auto folder = state_root + "/" + kBackupFolder;
@@ -320,6 +459,8 @@ void PruneBackups(const std::string& state_root) {
     names.erase(names.begin());
   }
 }
+
+#endif
 
 std::string Plural(std::size_t count, const char* one, const char* many) {
   return std::to_string(count) + " " + (count == 1 ? one : many);
@@ -374,9 +515,9 @@ LocalFiles ScanLocal(const GameSaveLocation& location, const SavePaths& paths, c
   for (const auto& candidate : candidates) {
     if (files.size() >= kMaxLocalSaveFiles) break;
     if (RootFolder(location, candidate.root).empty() || files.count(candidate.key()) || !paths.RemoteFor(candidate)) continue;
-    struct stat info {};
-    if (stat(Absolute(location, candidate).c_str(), &info) != 0 || !S_ISREG(info.st_mode)) continue;
-    files[candidate.key()] = {candidate, {static_cast<std::uint64_t>(info.st_size), static_cast<std::int64_t>(info.st_mtime)}};
+    std::uint64_t size=0,time=0;
+    if(!RegularFacts(Absolute(location,candidate),&size,&time))continue;
+    files[candidate.key()]={candidate,{size,static_cast<std::int64_t>(time)}};
   }
   return files;
 }
