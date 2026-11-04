@@ -1,8 +1,16 @@
 #include "update/zip_extract.h"
 
+#if defined(_WIN32)
+#include <io.h>
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <filesystem>
+#include <cerrno>
+#else
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#endif
 
 #include <algorithm>
 #include <cerrno>
@@ -32,7 +40,12 @@ struct Sink {
 bool Flush(Sink& sink) {
   std::size_t written = 0;
   while (written < sink.used) {
+    #if defined(_WIN32)
+    const int n = _write(sink.fd, sink.buffer.data() + written,
+                         static_cast<unsigned>(std::min<std::size_t>(sink.used-written, 1u<<20)));
+#else
     const ssize_t n = write(sink.fd, sink.buffer.data() + written, sink.used - written);
+#endif
     if (n <= 0) { sink.failed = true; return false; }
     written += static_cast<std::size_t>(n);
   }
@@ -180,8 +193,14 @@ ZipExtractResult ExtractZip(const std::string& zip_path, const std::string& dest
     bool written = false;
     for (int attempt = 0; attempt < 3 && !written; ++attempt) {
       // A new file each time: one created with someone else's owner can't take our mode.
+      #if defined(_WIN32)
+      if (attempt > 0) std::filesystem::remove(std::filesystem::u8path(path));
+      const auto wide=std::filesystem::u8path(path).wstring();
+      sink.fd = _wopen(wide.c_str(), _O_CREAT | _O_WRONLY | _O_TRUNC | _O_BINARY | _O_NOINHERIT, _S_IREAD | _S_IWRITE);
+#else
       if (attempt > 0) unlink(path.c_str());
       sink.fd = open(path.c_str(), O_CREAT | O_WRONLY | O_TRUNC, 0666);
+#endif
       if (sink.fd < 0) return fail("cannot create " + entry.relative + " errno=" + std::to_string(errno));
       sink.used = 0;
       sink.failed = false;
@@ -189,10 +208,27 @@ ZipExtractResult ExtractZip(const std::string& zip_path, const std::string& dest
                              Flush(sink);
       if (!extracted) {
         const std::string reason = sink.failed ? "write failed errno=" + std::to_string(errno) : ZipError(archive.zip);
+        #if defined(_WIN32)
+        _close(sink.fd);
+        #else
         close(sink.fd);
+        #endif
         if (cancelled()) { result.cancelled = true; return fail("cancelled"); }
         return fail("cannot unpack " + entry.relative + ": " + reason);
       }
+#if defined(_WIN32)
+      // Windows does not preserve POSIX uid/mode bits. Keep whitelist mode_for
+      // validation, verify exact decompressed size, and flush before closing.
+      const int chmod_rc = options.set_mode ? options.set_mode(sink.fd, entry.mode) : 0;
+      const int chmod_errno = chmod_rc ? errno : 0;
+      struct _stat64 st{};
+      const int stat_rc = _fstat64(sink.fd, &st);
+      const bool synced = _commit(sink.fd) == 0;
+      _close(sink.fd);
+      const auto good = [&] {
+        return synced && stat_rc == 0 && static_cast<std::uint64_t>(st.st_size) == entry.size;
+      };
+#else
       const int chmod_rc = options.set_mode ? options.set_mode(sink.fd, entry.mode) : fchmod(sink.fd, entry.mode);
       const int chmod_errno = chmod_rc ? errno : 0;
       struct stat st{};
@@ -201,13 +237,19 @@ ZipExtractResult ExtractZip(const std::string& zip_path, const std::string& dest
       const auto good = [&] {
         return stat_rc == 0 && static_cast<std::uint64_t>(st.st_size) == entry.size && (st.st_mode & 07777) == entry.mode;
       };
+#endif
       written = chmod_rc == 0 && good();
       // Created while another thread held root: the bytes are right, only root can set the mode.
       if (!written && chmod_rc != 0 && chmod_errno == EPERM && stat_rc == 0 &&
           static_cast<std::uint64_t>(st.st_size) == entry.size && options.fix_mode &&
           options.fix_mode(path, entry.mode)) {
+#if defined(_WIN32)
+        // Windows uses a different ownership model: no privilege elevation.
+        written = false;
+#else
         stat_rc = stat(path.c_str(), &st);
         written = good();
+#endif
         if (written) ++result.mode_fixed;
         continue;
       }
@@ -215,7 +257,11 @@ ZipExtractResult ExtractZip(const std::string& zip_path, const std::string& dest
         char line[512];
         std::snprintf(line, sizeof line,
                       "unzip check failed (attempt %d): %s chmod=%d errno=%d uid=%u size=%lld want=%llu mode=%o want=%o",
-                      attempt + 1, entry.relative.c_str(), chmod_rc, chmod_errno, (unsigned)st.st_uid,
+                      attempt + 1, entry.relative.c_str(), chmod_rc, chmod_errno, #if defined(_WIN32)
+                      0u,
+#else
+                      (unsigned)st.st_uid,
+#endif
                       (long long)st.st_size, (unsigned long long)entry.size, (unsigned)(st.st_mode & 07777),
                       entry.mode);
         options.log(line);
