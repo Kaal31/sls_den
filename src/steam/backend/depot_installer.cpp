@@ -4,10 +4,20 @@
 #include "steam/backend/gzip.h"
 #include "steam/install_volumes.h"
 
+#include <filesystem>
+#include <thread>
+#if defined(_WIN32)
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#include <io.h>
+#include <fcntl.h>
+#include <sys/stat.h>
+#else
 #include <dirent.h>
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#endif
 
 #include <algorithm>
 #include <cctype>
@@ -18,7 +28,9 @@
 #include <limits>
 #include <condition_variable>
 #include <mutex>
+#if !defined(_WIN32)
 #include <pthread.h>
+#endif
 #include <charconv>
 #include <map>
 #include <memory>
@@ -60,6 +72,28 @@ std::string Lower(std::string text) {
   return text;
 }
 
+#if defined(_WIN32)
+// Do not walk reparse points or authorize arbitrary relative installation paths.
+bool MakeDirs(const std::string& value, std::uint64_t* created = nullptr) {
+  const auto path=std::filesystem::u8path(value);
+  if(!path.is_absolute())return false;
+  std::error_code ec;
+  std::filesystem::path walk=path.root_path();
+  for(const auto& part:path.relative_path()) {
+    walk/=part;
+    auto info=std::filesystem::symlink_status(walk,ec);
+    if(ec==std::errc::no_such_file_or_directory)ec.clear();
+    else if(ec)return false;
+    if(std::filesystem::exists(info)) {
+      if(!std::filesystem::is_directory(info) || std::filesystem::is_symlink(info))return false;
+    } else {
+      if(!std::filesystem::create_directory(walk,ec)||ec)return false;
+      if(created)++*created;
+    }
+  }
+  return true;
+}
+#else
 bool MakeDirs(const std::string& path, std::uint64_t* created = nullptr) {
   if (path.empty()) return false;
   std::string current;
@@ -84,11 +118,51 @@ bool MakeDirs(const std::string& path, std::uint64_t* created = nullptr) {
   return true;
 }
 
+#endif
+
 std::string Parent(const std::string& path) {
   const auto slash = path.rfind('/');
   return slash == std::string::npos ? std::string() : path.substr(0, slash);
 }
 
+#if defined(_WIN32)
+// Win32 positioned writes do not share the global file pointer across workers.
+bool SizeAndWrite(const std::string& value,std::uint64_t size,std::uint64_t offset,
+                  const std::vector<std::uint8_t>* data) {
+  const auto path=std::filesystem::u8path(value);
+  const auto wide=path.wstring();
+  HANDLE file=CreateFileW(wide.c_str(),GENERIC_WRITE|GENERIC_READ,FILE_SHARE_READ,
+        nullptr,OPEN_ALWAYS,FILE_ATTRIBUTE_NORMAL|FILE_FLAG_OPEN_REPARSE_POINT,nullptr);
+  if(file==INVALID_HANDLE_VALUE)return false;
+  BY_HANDLE_FILE_INFORMATION info{};
+  bool ok=GetFileInformationByHandle(file,&info) &&
+          !(info.dwFileAttributes&(FILE_ATTRIBUTE_REPARSE_POINT|FILE_ATTRIBUTE_DIRECTORY));
+  if(ok) {
+    LARGE_INTEGER length{};length.QuadPart=static_cast<LONGLONG>(size);
+    ok=SetFilePointerEx(file,length,nullptr,FILE_BEGIN) && SetEndOfFile(file);
+  }
+  if(ok&&data) {
+    LARGE_INTEGER position{};position.QuadPart=static_cast<LONGLONG>(offset);
+    ok=SetFilePointerEx(file,position,nullptr,FILE_BEGIN);
+    std::size_t done=0;
+    while(ok&&done<data->size()) {
+      DWORD written=0;
+      const DWORD amount=static_cast<DWORD>(std::min<std::size_t>(data->size()-done,1024*1024));
+      ok=WriteFile(file,data->data()+done,amount,&written,nullptr)&&written>0;
+      done+=written;
+    }
+  }
+  if(!CloseHandle(file))ok=false;
+  return ok;
+}
+bool WriteAt(const std::string& path,std::uint64_t size,std::uint64_t offset,
+             const std::vector<std::uint8_t>& data) {
+  return SizeAndWrite(path,size,offset,&data);
+}
+bool EnsureFileSize(const std::string& path,std::uint64_t size) {
+  return SizeAndWrite(path,size,0,nullptr);
+}
+#else
 bool WriteAt(const std::string& path, std::uint64_t file_size, std::uint64_t offset,
              const std::vector<std::uint8_t>& data) {
   const int fd = open(path.c_str(), O_WRONLY | O_CREAT, 0666);
@@ -117,6 +191,8 @@ bool EnsureFileSize(const std::string& path, std::uint64_t size) {
   return close(fd) == 0 && ok;
 }
 
+#endif
+
 std::uint64_t DefaultFreeBytes(const std::string& path) {
   const auto space = QueryVolumeSpace(path);
   if (space) return space->free_bytes;
@@ -126,6 +202,43 @@ std::uint64_t DefaultFreeBytes(const std::string& path) {
 // Deletes a tree without following links. `error` keeps the first failure's errno.
 // A folder's entries other than "." and "..", read before any is deleted: deleting while reading
 // can make readdir skip entries. False when the folder cannot be opened.
+#if defined(_WIN32)
+bool ListEntries(const std::string& path,std::vector<std::string>& names) {
+  std::error_code ec;
+  std::filesystem::directory_iterator it(std::filesystem::u8path(path),ec),end;
+  if(ec)return false;
+  for(;it!=end;it.increment(ec)) {
+    if(ec)return false;
+    names.push_back(it->path().filename().u8string());
+  }
+  return !ec;
+}
+bool RemoveTree(const std::string& path,int* error=nullptr) {
+  std::error_code ec;
+  const auto target=std::filesystem::u8path(path);
+  auto stat=std::filesystem::symlink_status(target,ec);
+  if(ec==std::errc::no_such_file_or_directory)return true;
+  if(ec){if(error&&!*error)*error=static_cast<int>(ec.value());return false;}
+  if(!std::filesystem::is_directory(stat) || std::filesystem::is_symlink(stat))
+    return std::filesystem::remove(target,ec)&&!ec;
+  std::vector<std::string> names;
+  if(!ListEntries(path,names))return false;
+  bool ok=true;
+  for(const auto& name:names)ok=RemoveTree((target/std::filesystem::u8path(name)).u8string(),error)&&ok;
+  if(!std::filesystem::remove(target,ec)||ec)ok=false;
+  if(ec&&error&&!*error)*error=static_cast<int>(ec.value());
+  return ok;
+}
+std::uint64_t AllocatedBytes(const std::string& path,std::uint64_t size) {
+  std::error_code ec;
+  const auto actual=std::filesystem::file_size(std::filesystem::u8path(path),ec);
+  return ec?0:std::min<std::uint64_t>(size,actual);
+}
+bool Exists(const std::string& path) {
+  std::error_code ec;
+  return std::filesystem::exists(std::filesystem::u8path(path),ec)&&!ec;
+}
+#else
 bool ListEntries(const std::string& path, std::vector<std::string>& names) {
   DIR* dir = opendir(path.c_str());
   if (!dir) return false;
@@ -163,6 +276,8 @@ bool Exists(const std::string& path) {
   struct stat info {};
   return stat(path.c_str(), &info) == 0;
 }
+
+#endif
 
 bool SameFile(const ManifestFile& left, const ManifestFile& right) {
   if (left.size != right.size || left.flags != right.flags || left.link_target != right.link_target ||
@@ -294,7 +409,7 @@ DepotInstaller::DepotInstaller(CmClient& cm, CdnClient& cdn) {
     return manifest_problem->empty() ? cdn.last_failure() : *manifest_problem;
   };
   hooks_.pause = [](int milliseconds, const std::atomic<bool>& cancel) {
-    for (int waited = 0; waited < milliseconds && !cancel.load(); waited += 100) usleep(100 * 1000);
+    for (int waited = 0; waited < milliseconds && !cancel.load(); waited += 100) std::this_thread::sleep_for(std::chrono::milliseconds(100));
   };
 }
 
@@ -589,7 +704,11 @@ InstallOutcome DepotInstaller::Run(const StoredSession& session, const InstallTa
   }
   struct Worker {
     InstallerHooks::ChunkFetcher fetcher;
+#if defined(_WIN32)
+    std::thread thread;
+#else
     pthread_t thread{};
+#endif
     bool started = false, busy = false, ready = false;
     std::size_t work = 0;
     std::vector<std::uint8_t> plain;
@@ -637,7 +756,14 @@ InstallOutcome DepotInstaller::Run(const StoredSession& session, const InstallTa
     stop.store(true);
     changed.notify_all();
     for (auto& worker : workers) {
-      if (worker->started) { pthread_join(worker->thread, nullptr); worker->started = false; }
+      if (worker->started) {
+#if defined(_WIN32)
+        if(worker->thread.joinable())worker->thread.join();
+#else
+        pthread_join(worker->thread,nullptr);
+#endif
+        worker->started=false;
+      }
     }
     workers_running = false;
     snapshot();
@@ -647,9 +773,13 @@ InstallOutcome DepotInstaller::Run(const StoredSession& session, const InstallTa
   coordinator_cdn = hooks_.cdn_stats ? hooks_.cdn_stats() : CdnStats{};
   workers_running = true;
   if (!chunks.empty()) trace("first-chunk");
+#if defined(_WIN32)
+  const bool stack_ready=true;
+#else
   pthread_attr_t attr;
   const bool attr_ready = pthread_attr_init(&attr) == 0;
   const bool stack_ready = attr_ready && pthread_attr_setstacksize(&attr, 256 * 1024) == 0;
+#endif
   if (!stack_ready && !chunks.empty()) publish_failure(InstallError::kNetwork, "cannot start workers");
   for (int index = 0; stack_ready && index < slots && !chunks.empty() && !stop.load(); ++index) {
     auto worker = std::make_unique<Worker>();
@@ -742,14 +872,28 @@ InstallOutcome DepotInstaller::Run(const StoredSession& session, const InstallTa
 #endif
     };
     workers.push_back(std::move(worker));
+#if defined(_WIN32)
+#if defined(__cpp_exceptions)
+    try {
+#endif
+      self->thread=std::thread([self]{self->run();});
+#if defined(__cpp_exceptions)
+    } catch (...) {
+      publish_failure(InstallError::kNetwork,"cannot start workers");break;
+    }
+#endif
+#else
     if (pthread_create(&self->thread, &attr, [](void* context) -> void* {
           static_cast<Worker*>(context)->run(); return nullptr;
         }, self) != 0) {
       publish_failure(InstallError::kNetwork, "cannot start workers"); break;
     }
+#endif
     self->started = true;
   }
+#if !defined(_WIN32)
   if (attr_ready) pthread_attr_destroy(&attr);
+#endif
   const auto prepare_file = [&](std::size_t index) {
     auto& work = files[index];
     if (work.prepared) return true;
