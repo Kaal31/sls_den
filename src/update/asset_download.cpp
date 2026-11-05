@@ -252,7 +252,7 @@ DownloadResult DownloadAsset(const std::string& url, std::uint64_t size, const s
       while (written < response.body.size()) {
 #if defined(_WIN32)
         if(!DownloadWriteAt(fd,response.body.data()+written,response.body.size()-written,done+written)){
-          _DownloadClose(fd);return fail("Windows write failed");
+          DownloadClose(fd);return fail("Windows write failed");
         }
         written=response.body.size();
 #else
