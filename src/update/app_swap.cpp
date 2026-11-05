@@ -1,5 +1,38 @@
 #include "update/app_swap.h"
 
+#if defined(_WIN32)
+// This implementation updates a registered PS5 application (eboot.bin and
+// sce_sys). Those paths and ShadowMount registrations do not exist on Windows.
+// Never attempt a partial console-style replacement of a Windows executable.
+#include <utility>
+namespace playden::update {
+namespace {
+SwapResult Unsupported(const LogLine& log) {
+  const std::string reason="PS5 eboot.bin application swap is unavailable on Windows";
+  if(log)log(reason);
+  return {false,reason,0};
+}
+}
+const std::vector<std::string>& KeptAppEntries() {
+  static const std::vector<std::string> kept={"logs","playden-data","dev","games","playden-hui-comparison"};
+  return kept;
+}
+SwapResult SwapApp(const std::string&,const std::string&,const std::string&,const LogLine& log) {
+  return Unsupported(log);
+}
+SwapResult RestoreApp(const std::string&,const std::string&,const std::string&,const LogLine& log) {
+  return Unsupported(log);
+}
+bool UndoSwap(const std::string&,const std::string&,const std::string&,const LogLine& log) {
+  Unsupported(log);
+  return false;
+}
+bool RefreshRegisteredCopies(const std::string&,const std::string&,const std::string&,const LogLine& log) {
+  Unsupported(log);
+  return false;
+}
+} // namespace playden::update
+#else
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <unistd.h>
@@ -174,3 +207,5 @@ bool RefreshRegisteredCopies(const std::string& sce_sys, const std::string& appm
 }
 
 }  // namespace playden::update
+
+#endif // _WIN32
