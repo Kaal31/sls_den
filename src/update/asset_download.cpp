@@ -1,10 +1,20 @@
 #include "update/asset_download.h"
 #include "update/release.h"
 
+#if defined(_WIN32)
+#include <io.h>
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <filesystem>
+#include <thread>
+#include <chrono>
+#include <cstring>
+#else
 #include <fcntl.h>
 #include <strings.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#endif
 
 #include <algorithm>
 #include <cerrno>
@@ -14,10 +24,59 @@ namespace playden::update {
 namespace {
 
 constexpr int kMaxRedirects = 5;
+void DownloadClose(int fd) {
+#if defined(_WIN32)
+  _close(fd);
+#else
+  close(fd);
+#endif
+}
+
+#if defined(_WIN32)
+int DownloadOpen(const std::string& path) {
+  const auto wide=std::filesystem::u8path(path).wstring();
+  return _wopen(wide.c_str(),_O_CREAT|_O_RDWR|_O_BINARY|_O_NOINHERIT,
+                _S_IREAD|_S_IWRITE);
+}
+bool DownloadExistsSize(const std::string& path,std::uint64_t* size) {
+  std::error_code ec;
+  const auto native=std::filesystem::u8path(path);
+  const auto st=std::filesystem::symlink_status(native,ec);
+  if(ec || !std::filesystem::is_regular_file(st) || std::filesystem::is_symlink(st))
+    return false;
+  *size=std::filesystem::file_size(native,ec);
+  return !ec;
+}
+bool DownloadRemove(const std::string& path) {
+  std::error_code ec;
+  return std::filesystem::remove(std::filesystem::u8path(path),ec)&&!ec;
+}
+bool DownloadRename(const std::string& from,const std::string& to) {
+  std::error_code ec;
+  std::filesystem::rename(std::filesystem::u8path(from),std::filesystem::u8path(to),ec);
+  return !ec;
+}
+bool DownloadWriteAt(int fd,const std::uint8_t* data,std::size_t count,std::uint64_t offset) {
+  if(_lseeki64(fd,static_cast<__int64>(offset),SEEK_SET)<0)return false;
+  std::size_t done=0;
+  while(done<count) {
+    const unsigned amount=static_cast<unsigned>(std::min<std::size_t>(count-done,1u<<20));
+    const int n=_write(fd,data+done,amount);
+    if(n<=0)return false;
+    done+=static_cast<std::size_t>(n);
+  }
+  return true;
+}
+#endif
+
 
 std::string Header(const steam::HttpResponse& response, const char* name) {
   for (const auto& [key, value] : response.headers)
+    #if defined(_WIN32)
+    if (_stricmp(key.c_str(), name) == 0) return value;
+#else
     if (strcasecmp(key.c_str(), name) == 0) return value;
+#endif
   return {};
 }
 
@@ -81,7 +140,13 @@ void Wait(const DownloadOptions& options, int attempt) {
     options.wait_before_retry(attempt);
     return;
   }
-  for (int step = 0; step < 20 * attempt && !Cancelled(options); ++step) usleep(100000);
+  for (int step = 0; step < 20 * attempt && !Cancelled(options); ++step) {
+#if defined(_WIN32)
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+#else
+    usleep(100000);
+#endif
+  }
 }
 
 }  // namespace
@@ -129,6 +194,19 @@ DownloadResult DownloadAsset(const std::string& url, std::uint64_t size, const s
   // GitHub's digest is the only check on the bytes: without one, nothing is installed.
   if (!IsSha256(sha256)) return fail("no checksum for this download");
   const std::string part = path + ".part";
+#if defined(_WIN32)
+  std::uint64_t done=0;
+  if(DownloadExistsSize(part,&done) && done>size) {
+    if(!DownloadRemove(part))return fail("cannot discard oversized part");
+    done=0;
+  }
+  if(done)Log(options,"download "+path+" resumes at "+std::to_string(done));
+  const int fd=DownloadOpen(part);
+  if(fd<0)return fail("cannot open Windows download part");
+  if(_chsize_s(fd,done)!=0) {
+    _close(fd);return fail("cannot resize Windows download part");
+  }
+#else
   struct stat st{};
   std::uint64_t done = stat(part.c_str(), &st) == 0 ? static_cast<std::uint64_t>(st.st_size) : 0;
   if (done > size) {
@@ -143,11 +221,12 @@ DownloadResult DownloadAsset(const std::string& url, std::uint64_t size, const s
     close(fd);
     return fail("cannot resize " + part);
   }
+#endif
   std::string target;
   int attempts = 0;
   while (done < size) {
     if (Cancelled(options)) {
-      close(fd);
+      DownloadClose(fd);
       result.cancelled = true;
       return fail("cancelled");
     }
@@ -156,7 +235,7 @@ DownloadResult DownloadAsset(const std::string& url, std::uint64_t size, const s
       const auto resolved = Resolve(options, url, &error);
       if (!resolved) {
         if (Cancelled(options)) continue;
-        if (++attempts >= options.max_attempts) { close(fd); return fail(error); }
+        if (++attempts >= options.max_attempts) { DownloadClose(fd); return fail(error); }
         Wait(options, attempts);
         continue;
       }
@@ -171,10 +250,17 @@ DownloadResult DownloadAsset(const std::string& url, std::uint64_t size, const s
         Header(response, "content-range").rfind(range, 0) == 0) {
       std::size_t written = 0;
       while (written < response.body.size()) {
+#if defined(_WIN32)
+        if(!DownloadWriteAt(fd,response.body.data()+written,response.body.size()-written,done+written)){
+          _DownloadClose(fd);return fail("Windows write failed");
+        }
+        written=response.body.size();
+#else
         const ssize_t n = pwrite(fd, response.body.data() + written, response.body.size() - written,
                                  static_cast<off_t>(done + written));
-        if (n <= 0) { close(fd); return fail("write failed errno=" + std::to_string(errno)); }
+        if (n <= 0) { DownloadClose(fd); return fail("write failed errno=" + std::to_string(errno)); }
         written += static_cast<std::size_t>(n);
+#endif
       }
       done += response.body.size();
       attempts = 0;
@@ -187,19 +273,33 @@ DownloadResult DownloadAsset(const std::string& url, std::uint64_t size, const s
     if (response.status_code == 401 || response.status_code == 403 || response.status_code == 404 ||
         response.status_code == 200 || response.status_code == 416)
       target.clear();
-    if (++attempts >= options.max_attempts) { close(fd); return fail("download keeps failing (" + Describe(response) + ")"); }
+    if (++attempts >= options.max_attempts) { DownloadClose(fd); return fail("download keeps failing (" + Describe(response) + ")"); }
     Wait(options, attempts);
   }
+#if defined(_WIN32)
+  const bool synced=_commit(fd)==0;
+  _close(fd);
+#else
   const bool synced = fsync(fd) == 0;
   close(fd);
-  if (!synced) return fail("cannot sync " + part);
+
+#endif
+  if(!synced)return fail("cannot sync "+part);
   const auto actual = options.hash_file ? options.hash_file(part) : std::nullopt;
   if (!actual) return fail("cannot read the download to check it");  // the bytes stay for a retry
   if (*actual != sha256) {
+#if defined(_WIN32)
+    DownloadRemove(part);
+#else
     unlink(part.c_str());
+#endif
     return fail("checksum mismatch");
   }
+#if defined(_WIN32)
+  if(!DownloadRename(part,path))return fail("cannot rename "+part);
+#else
   if (rename(part.c_str(), path.c_str()) != 0) return fail("cannot rename " + part);
+#endif
   result.ok = true;
   return result;
 }
