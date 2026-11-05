@@ -257,13 +257,14 @@ ZipExtractResult ExtractZip(const std::string& zip_path, const std::string& dest
         char line[512];
         std::snprintf(line, sizeof line,
                       "unzip check failed (attempt %d): %s chmod=%d errno=%d uid=%u size=%lld want=%llu mode=%o want=%o",
-                      attempt + 1, entry.relative.c_str(), chmod_rc, chmod_errno, #if defined(_WIN32)
+                      attempt + 1, entry.relative.c_str(), chmod_rc, chmod_errno,
+#if defined(_WIN32)
                       0u,
 #else
                       (unsigned)st.st_uid,
 #endif
-                      (long long)st.st_size, (unsigned long long)entry.size, (unsigned)(st.st_mode & 07777),
-                      entry.mode);
+                      (long long)st.st_size, (unsigned long long)entry.size,
+                      (unsigned)(st.st_mode & 07777), entry.mode);
         options.log(line);
       }
       if (!written && attempt < 2) ++result.rewritten;
