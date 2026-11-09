@@ -304,7 +304,7 @@ void Controller::Tick() {
       case ServiceAction::CancelQr:
         // Stop automatic retries while preserving the need to restore the
         // saved account when the user chooses Connect again.
-        retry_saved_session_at_ = std::chrono::steady_clock::time_point::max();
+        retry_saved_session_at_ = (std::chrono::steady_clock::time_point::max)();
         if (phase_ == Phase::SignIn && reauthenticating_) {
           // Back to the saved sign-in; nothing was cleared.
           service_->Cancel(request_);
