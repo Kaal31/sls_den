@@ -1,8 +1,13 @@
 #include "steam/local_session_repository.h"
 #include <cerrno>
 #include <atomic>
+#if defined(_WIN32)
+#include <filesystem>
+#include <process.h>
+#else
 #include <unistd.h>
 #include <sys/stat.h>
+#endif
 
 namespace playden {
 LocalSessionRepository::LocalSessionRepository(std::string root, DiagnosticReport report, SessionVault* vault)
@@ -11,6 +16,24 @@ Result<void> LocalSessionRepository::Prepare() const {
   if (prepared_) return Result<void>::Success();
   if (root_.empty() || root_.find('\0') != std::string::npos)
     return Result<void>::Failure(StorageError::kInvalidPath,"Session storage path is invalid");
+#if defined(_WIN32)
+  // Only create the leaf: the configured parent must already exist.
+  // Never follow a junction or symlink into another session directory.
+  const auto root = std::filesystem::u8path(root_);
+  std::error_code ec;
+  const auto parent = std::filesystem::symlink_status(root.parent_path(), ec);
+  if (ec || !std::filesystem::is_directory(parent) || std::filesystem::is_symlink(parent))
+    return Result<void>::Failure(StorageError::kOpenFailed,"Session storage parent is unavailable");
+  auto info = std::filesystem::symlink_status(root, ec);
+  if (ec == std::errc::no_such_file_or_directory) {
+    ec.clear();
+    if (!std::filesystem::create_directory(root,ec) || ec)
+      return Result<void>::Failure(StorageError::kOpenFailed,"Cannot create session storage directory");
+    info = std::filesystem::symlink_status(root,ec);
+  }
+  if (ec || !std::filesystem::is_directory(info) || std::filesystem::is_symlink(info))
+    return Result<void>::Failure(StorageError::kOpenFailed,"Session storage is unavailable");
+#else
   if (mkdir(root_.c_str(),0700) != 0 && errno != EEXIST) {
     const int error = errno;
     if (report_) report_("session storage mkdir failed errno=" + std::to_string(error));
@@ -24,11 +47,18 @@ Result<void> LocalSessionRepository::Prepare() const {
                         " directory=" + std::to_string(S_ISDIR(info.st_mode)));
     return Result<void>::Failure(StorageError::kOpenFailed,"Session storage is unavailable");
   }
+#endif
   const Bytes marker{'o','k'};
   // Each service owns a repository for this root. A shared probe (and .tmp)
   // lets one worker rename/remove another worker's file during startup.
   static std::atomic<unsigned long long> next_probe{0};
-  const std::string path = "session-storage.probe-" + std::to_string(getpid()) +
+  const std::string path = "session-storage.probe-" + std::to_string(
+#if defined(_WIN32)
+      _getpid()
+#else
+      getpid()
+#endif
+      ) +
                            "-" + std::to_string(next_probe.fetch_add(1, std::memory_order_relaxed));
   const auto written = storage_.WriteAtomicPrivate(path,marker);
   if (!written.ok()) {
