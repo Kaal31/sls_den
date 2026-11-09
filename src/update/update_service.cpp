@@ -1,8 +1,14 @@
 #include "update/update_service.h"
 
+#if defined(_WIN32)
+#include <thread>
+#include <filesystem>
+#include <system_error>
+#else
 #include <pthread.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#endif
 
 #include <algorithm>
 #include <cerrno>
@@ -23,16 +29,63 @@ struct UpdateService::Shared {
   std::atomic<bool> busy{false};
   std::function<void()> queued;  // one job asked for while another ran (under mutex)
   bool thread_started = false;
+#if defined(_WIN32)
+  std::thread thread;
+#else
   pthread_t thread{};
+#endif
 };
 
 namespace {
 
+#if !defined(_WIN32)
 void* RunJob(void* opaque) {
   std::unique_ptr<std::function<void()>> work(static_cast<std::function<void()>*>(opaque));
   (*work)();
   return nullptr;
 }
+#endif
+
+#if defined(_WIN32)
+namespace fs=std::filesystem;
+int HostRename(const std::string& from,const std::string& to) {
+  std::error_code error;
+  fs::rename(fs::u8path(from),fs::u8path(to),error);
+  return error?-1:0;
+}
+int HostUnlink(const std::string& path) {
+  std::error_code error;
+  const bool removed=fs::remove(fs::u8path(path),error);
+  return !error&&removed?0:-1;
+}
+int HostRmdir(const std::string& path) { return HostUnlink(path); }
+int HostMode(const std::string&,unsigned) {
+  // POSIX uid/chmod has no equivalent for PS5 root-owned kit publication.
+  return -1;
+}
+int HostAccessWrite(const std::string&) {
+  // Fail closed: the console-specific privileged update journal cannot
+  // be treated as a Windows filesystem permission probe.
+  return -1;
+}
+bool HostLayoutJournalExists(const std::string& path,bool* uncertain) {
+  std::error_code error;
+  const auto status=fs::symlink_status(fs::u8path(path),error);
+  *uncertain=!!error&&error!=std::errc::no_such_file_or_directory;
+  return !error&&fs::exists(status);
+}
+#else
+int HostRename(const std::string& from,const std::string& to) {return rename(from.c_str(),to.c_str());}
+int HostUnlink(const std::string& path) {return unlink(path.c_str());}
+int HostRmdir(const std::string& path) {return rmdir(path.c_str());}
+int HostMode(const std::string& path,unsigned mode) {return chmod(path.c_str(),mode);}
+int HostAccessWrite(const std::string& path) {return access(path.c_str(),W_OK);}
+bool HostLayoutJournalExists(const std::string& path,bool* uncertain) {
+  struct stat info{};
+  if(::lstat(path.c_str(),&info)==0){*uncertain=false;return true;}
+  *uncertain=errno!=ENOENT;return false;
+}
+#endif
 
 std::string Quote(const std::string& text) {
   std::string out = "\"";
@@ -194,9 +247,9 @@ std::string UpdateService::StagedFields() const {
 }
 
 bool UpdateService::PrepareWorkRoot() {
-  if (IsFolder(config_.work_root) && access(config_.work_root.c_str(), W_OK) == 0) return true;
-  config_.as_root([&] { return MakeFolders(config_.work_root) && chmod(config_.work_root.c_str(), 0777) == 0; });
-  const bool ok = IsFolder(config_.work_root) && access(config_.work_root.c_str(), W_OK) == 0;
+  if (IsFolder(config_.work_root) && HostAccessWrite(config_.work_root) == 0) return true;
+  config_.as_root([&] { return MakeFolders(config_.work_root) && HostMode(config_.work_root,0777) == 0; });
+  const bool ok = IsFolder(config_.work_root) && HostAccessWrite(config_.work_root) == 0;
   if (!ok) Log("cannot create " + config_.work_root);
   return ok;
 }
@@ -209,7 +262,7 @@ void UpdateService::RemoveReplacedKits() {
     if (name.compare(0, 10, ".replaced-") != 0) continue;
     const std::string path = config_.kits_root + "/" + name;
     if (!IsFolder(path)) continue;
-    if (ListFolder(path).empty() && rmdir(path.c_str()) == 0) continue;
+    if (ListFolder(path).empty() && HostRmdir(path) == 0) continue;
     config_.as_root([&] {
       RemoveTree(path);
       return !Exists(path);
@@ -232,7 +285,7 @@ void UpdateService::RetireRenamedKits() {
     const std::string stamp = backup ? backup->path.substr(backup->path.rfind('-') + 1) : std::to_string(config_.now());
     std::string previous = config_.kits_root + "/.previous-" + id + "-" + stamp;
     if (Exists(previous)) previous = config_.kits_root + "/.previous-" + id + "-" + std::to_string(config_.now());
-    const bool moved = config_.as_root([&] { return !Exists(previous) && rename(old_kit.c_str(), previous.c_str()) == 0; });
+    const bool moved = config_.as_root([&] { return !Exists(previous) && HostRename(old_kit,previous) == 0; });
     Log(moved ? "kit folder " + id + " retired as " + previous : "kit folder " + id + " could not be retired");
   }
 }
@@ -269,7 +322,11 @@ void UpdateService::Run(std::function<void()> work) {
     shared_->busy = true;
   }
   if (shared_->thread_started) {
+#if defined(_WIN32)
+    if(shared_->thread.joinable())shared_->thread.join();
+#else
     pthread_join(shared_->thread, nullptr);
+#endif
     shared_->thread_started = false;
   }
   shared_->cancel = false;
@@ -290,6 +347,23 @@ void UpdateService::Run(std::function<void()> work) {
       if (!shared->cancel) next();
     }
   });
+#if defined(_WIN32)
+  try {
+    shared_->thread=std::thread([job] {
+      std::unique_ptr<std::function<void()>> owned(job);
+      (*owned)();
+    });
+  } catch (const std::system_error& error) {
+    delete job;
+    {
+      std::lock_guard<std::mutex> lock(shared_->mutex);
+      shared_->busy=false;
+      shared_->queued=nullptr;
+    }
+    Fail("Playden could not start the update.",error.what());
+    return;
+  }
+#else
   pthread_attr_t attributes;
   pthread_attr_init(&attributes);
   pthread_attr_setstacksize(&attributes, config_.worker_stack_bytes);
@@ -305,13 +379,18 @@ void UpdateService::Run(std::function<void()> work) {
     Fail("Playden could not start the update.", "pthread_create " + std::to_string(rc));
     return;
   }
+#endif
   shared_->thread_started = true;
 }
 
 void UpdateService::Shutdown() {
   shared_->cancel = true;
   if (shared_->thread_started) {
+#if defined(_WIN32)
+    if(shared_->thread.joinable())shared_->thread.join();
+#else
     pthread_join(shared_->thread, nullptr);
+#endif
     shared_->thread_started = false;
   }
 }
@@ -353,9 +432,10 @@ std::string UpdateService::LayoutRefusal(const Version& to) const {
   if (!(config_.current < kLayoutBoundary)) return "this version uses the 0.6 data layout";
   if (config_.layout_journal.empty()) return {};
   // Moved (or being moved) when the move record is there; unknown counts as moved.
-  struct stat info{};
-  if (::lstat(config_.layout_journal.c_str(), &info) == 0) return "the 0.6 layout move record exists";
-  if (errno != ENOENT) return "the 0.6 layout move record can't be checked (errno=" + std::to_string(errno) + ")";
+  bool uncertain=false;
+  if(HostLayoutJournalExists(config_.layout_journal,&uncertain))
+    return "the 0.6 layout move record exists";
+  if(uncertain)return "the 0.6 layout move record cannot be checked";
   return {};
 }
 
@@ -423,7 +503,7 @@ void UpdateService::Start() {
   const auto state = steam::json::Parse(text);
   if (!state || !state->is_object()) {
     Log("unreadable state, removed");
-    unlink(StatePath().c_str());
+    HostUnlink(StatePath());
     return;
   }
   const auto field = [&](const char* name) -> std::string {
@@ -457,7 +537,7 @@ void UpdateService::Start() {
     Log("staged update no longer applies, removed");
     RemoveOwnedTree(stage);
     if (!kit.empty()) RemoveOwnedTree(kit);
-    unlink(StatePath().c_str());
+    HostUnlink(StatePath());
   }
 }
 
@@ -489,7 +569,7 @@ void UpdateService::ConfirmApplied(const std::string& text) {
     });
     // Only the app user's own leftovers go now. The previous app and kit stay to go back by hand;
     // older ones are root-owned and are removed at the next update's quit, when nothing else runs.
-    if (!rolled_back) unlink((config_.work_root + "/declined-version").c_str());
+    if (!rolled_back) HostUnlink((config_.work_root + "/declined-version"));
     // Normally done at quit; again here in case the process died right after the swap. Root is
     // process-wide, so it is raised now, while Start runs before the runtime and the UI: raised from
     // the worker it failed the runtime's ownership checks at the same time ("Games can't start").
@@ -499,7 +579,7 @@ void UpdateService::ConfirmApplied(const std::string& text) {
     });
     // Confirmed: a start closed before the cleanup below finishes does not confirm again; the next
     // start finds the leftovers without a state and cleans them up.
-    unlink(StatePath().c_str());
+    HostUnlink(StatePath());
     CleanUpLeftovers();
     return;
   }
@@ -511,7 +591,7 @@ void UpdateService::ConfirmApplied(const std::string& text) {
   if (!backup.empty() && !stage.empty() && IsFolder(backup))
     config_.as_root([&] {
       const bool undone = UndoSwap(config_.installed_root, stage, backup, [this](const std::string& line) { Log(line); });
-      rmdir(backup.c_str());  // empty now, unless something could not move back
+      HostRmdir(backup);  // empty now, unless something could not move back
       return undone;
     });
   if (!previous_kit.empty() && !kit_id.empty() && Exists(previous_kit)) {
@@ -522,9 +602,9 @@ void UpdateService::ConfirmApplied(const std::string& text) {
       displaced = config_.kits_root + "/.failed-" + kit_id + "-" + std::to_string(config_.now());
     const bool restored = config_.as_root([&] {
       const bool moved_aside = Exists(installed_kit);
-      if (moved_aside && rename(installed_kit.c_str(), displaced.c_str()) != 0) return false;
-      if (rename(previous_kit.c_str(), installed_kit.c_str()) == 0) return true;
-      if (moved_aside) rename(displaced.c_str(), installed_kit.c_str());  // keep a working kit in place
+      if (moved_aside && HostRename(installed_kit,displaced) != 0) return false;
+      if (HostRename(previous_kit,installed_kit) == 0) return true;
+      if (moved_aside) HostRename(displaced,installed_kit);  // keep a working kit in place
       return false;
     });
     Log(restored ? "previous kit restored" : "previous kit could not be restored");
@@ -535,7 +615,7 @@ void UpdateService::ConfirmApplied(const std::string& text) {
                          " did not finish. Playden " + config_.current.ToString() + " is still installed.";
     s.finished_failed = true;
   });
-  unlink(StatePath().c_str());
+  HostUnlink(StatePath());
   FindPrevious();
 }
 
@@ -742,11 +822,11 @@ bool UpdateService::StageKit(const ReleaseAsset& asset, const KitPart& kit, bool
   RemoveOwnedTree(staging);
   config_.as_root([&] {
     // A first start has no kits folder: made like the kit upload tool makes it.
-    if (!IsFolder(config_.kits_root) && (!MakeFolders(config_.kits_root) || chmod(config_.kits_root.c_str(), 0755) != 0))
+    if (!IsFolder(config_.kits_root) && (!MakeFolders(config_.kits_root) || HostMode(config_.kits_root,0755) != 0))
       return false;
-    return MakeFolders(staging) && chmod(staging.c_str(), 0777) == 0;
+    return MakeFolders(staging) && HostMode(staging,0777) == 0;
   });
-  if (!IsFolder(staging) || access(staging.c_str(), W_OK) != 0) {
+  if (!IsFolder(staging) || HostAccessWrite(staging) != 0) {
     fail("Playden could not create the kit folder.", staging);
     return false;
   }
@@ -754,7 +834,7 @@ bool UpdateService::StageKit(const ReleaseAsset& asset, const KitPart& kit, bool
   unzip.inner_prefix = kit.prefix;
   unzip.cancel = &shared_->cancel;
   unzip.fix_mode = [this](const std::string& path, unsigned mode) {
-    return config_.as_root([&] { return chmod(path.c_str(), mode) == 0; });
+    return config_.as_root([&] { return HostMode(path,mode) == 0; });
   };
   unzip.log = [this](const std::string& line) { Log(line); };
   unzip.progress = [this, kit_only](std::uint64_t done, std::uint64_t total) {
@@ -785,8 +865,8 @@ bool UpdateService::StageKit(const ReleaseAsset& asset, const KitPart& kit, bool
   const std::string final_folder = config_.kits_root + "/.next-" + kit.kit_id + "-" + kit.revision;
   const std::string replaced = final_folder + ".old";
   const bool moved = config_.as_root([&] {
-    if (Exists(final_folder) && rename(final_folder.c_str(), replaced.c_str()) != 0) return false;
-    return rename(staging.c_str(), final_folder.c_str()) == 0;
+    if (Exists(final_folder) && HostRename(final_folder,replaced) != 0) return false;
+    return HostRename(staging,final_folder) == 0;
   });
   RemoveOwnedTree(replaced);
   if (!moved) {
@@ -794,7 +874,7 @@ bool UpdateService::StageKit(const ReleaseAsset& asset, const KitPart& kit, bool
     fail("Playden could not put the new kit in place.", final_folder);
     return false;
   }
-  if (!local) unlink(zip.c_str());
+  if (!local) HostUnlink(zip);
   return true;
 }
 
@@ -949,9 +1029,9 @@ void UpdateService::DoInstallKit() {
     // replaces is a ".replaced-" leftover, removed at a later start.
     const std::string aside = config_.kits_root + "/.replaced-" + kit.kit_id + "-" + std::to_string(config_.now());
     const bool moved = config_.as_root([&] {
-      if (Exists(installed) && rename(installed.c_str(), aside.c_str()) != 0) return false;
-      if (rename(folder.c_str(), installed.c_str()) == 0) return true;
-      if (Exists(aside)) rename(aside.c_str(), installed.c_str());
+      if (Exists(installed) && HostRename(installed,aside) != 0) return false;
+      if (HostRename(folder,installed) == 0) return true;
+      if (Exists(aside)) HostRename(aside,installed);
       return false;
     });
     if (!moved) return FailKit("Playden could not put the kit in place.", installed);
@@ -1000,7 +1080,7 @@ bool UpdateService::StageApp(const Release& release, const UpdateManifest& manif
   unzip.inner_prefix = manifest.app_prefix;
   unzip.cancel = &shared_->cancel;
   unzip.fix_mode = [this](const std::string& path, unsigned mode) {
-    return config_.as_root([&] { return chmod(path.c_str(), mode) == 0; });
+    return config_.as_root([&] { return HostMode(path,mode) == 0; });
   };
   unzip.mode_for = AppMode;
   unzip.log = [this](const std::string& line) { Log(line); };
@@ -1037,7 +1117,7 @@ bool UpdateService::StageApp(const Release& release, const UpdateManifest& manif
     Fail("The downloaded Playden is not version " + release.version.ToString() + ".", "param.json");
     return false;
   }
-  if (!local) unlink(zip.c_str());
+  if (!local) HostUnlink(zip);
   staged_folder_ = stage;
   return true;
 }
@@ -1092,14 +1172,14 @@ bool UpdateService::RollBackAtQuit() {
     bool moved_aside = false;
     if (!previous_kit.empty()) {
       if (Exists(installed_kit)) {
-        if (rename(installed_kit.c_str(), replaced_kit.c_str()) != 0) {
+        if (HostRename(installed_kit,replaced_kit) != 0) {
           swap.error = "cannot move the current kit aside";
           return false;
         }
         moved_aside = true;
       }
-      if (rename(previous_kit.c_str(), installed_kit.c_str()) != 0) {
-        if (moved_aside) rename(replaced_kit.c_str(), installed_kit.c_str());
+      if (HostRename(previous_kit,installed_kit) != 0) {
+        if (moved_aside) HostRename(replaced_kit,installed_kit);
         swap.error = "cannot put the previous kit back";
         return false;
       }
@@ -1109,8 +1189,8 @@ bool UpdateService::RollBackAtQuit() {
     swap = RestoreApp(config_.installed_root, backup->path, replaced, log);
     if (!swap.ok) {
       if (kit_swapped) {
-        rename(installed_kit.c_str(), previous_kit.c_str());
-        if (moved_aside) rename(replaced_kit.c_str(), installed_kit.c_str());
+        HostRename(installed_kit,previous_kit);
+        if (moved_aside) HostRename(replaced_kit,installed_kit);
         kit_swapped = false;
       }
       return false;
@@ -1125,7 +1205,7 @@ bool UpdateService::RollBackAtQuit() {
   });
   if (!swap.ok) {
     Log("going back failed: " + swap.error);
-    unlink(StatePath().c_str());
+    HostUnlink(StatePath());
     return false;
   }
   SaveState("applied", going_back);
@@ -1171,12 +1251,12 @@ bool UpdateService::ApplyAtQuit() {
         swap.error = "staged kit is missing";
         return false;
       }
-      if (Exists(installed_kit) && rename(installed_kit.c_str(), previous_kit.c_str()) != 0) {
+      if (Exists(installed_kit) && HostRename(installed_kit,previous_kit) != 0) {
         swap.error = "cannot move the installed kit aside";
         return false;
       }
-      if (rename(staged_kit_.c_str(), installed_kit.c_str()) != 0) {
-        rename(previous_kit.c_str(), installed_kit.c_str());
+      if (HostRename(staged_kit_,installed_kit) != 0) {
+        HostRename(previous_kit,installed_kit);
         swap.error = "cannot move the new kit in";
         return false;
       }
@@ -1186,8 +1266,8 @@ bool UpdateService::ApplyAtQuit() {
     swap = SwapApp(config_.installed_root, staged_folder_, backup, log);
     if (!swap.ok) {
       if (kit_swapped) {
-        rename(installed_kit.c_str(), staged_kit_.c_str());
-        if (Exists(previous_kit)) rename(previous_kit.c_str(), installed_kit.c_str());
+        HostRename(installed_kit,staged_kit_);
+        if (Exists(previous_kit)) HostRename(previous_kit,installed_kit);
         kit_swapped = false;
       }
       return false;
