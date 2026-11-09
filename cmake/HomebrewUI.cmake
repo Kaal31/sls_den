@@ -274,7 +274,12 @@ if(WIN32 AND PLAYDEN_WINDOWS_OFFLINE_ONLY)
 else()
     set(playden_writable_folders_source "${CMAKE_SOURCE_DIR}/src/runtime/writable_folders.cpp")
 endif()
-add_library(playden_homebrew_runtime_host STATIC "${CMAKE_SOURCE_DIR}/src/homebrew/runtime_host.cpp"
+if(WIN32 AND PLAYDEN_WINDOWS_OFFLINE_ONLY)
+    set(playden_runtime_host_source "${CMAKE_SOURCE_DIR}/windows-playden/runtime_host_windows.cpp")
+else()
+    set(playden_runtime_host_source "${CMAKE_SOURCE_DIR}/src/homebrew/runtime_host.cpp")
+endif()
+add_library(playden_homebrew_runtime_host STATIC ${playden_runtime_host_source}
     ${playden_writable_folders_source})
 target_compile_features(playden_homebrew_runtime_host PUBLIC cxx_std_20)
 target_include_directories(playden_homebrew_runtime_host PUBLIC "${CMAKE_SOURCE_DIR}/src")
