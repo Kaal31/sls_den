@@ -28,6 +28,7 @@
 #include "gfx/gl.hpp"
 #include "gfx/gl_program.hpp"
 
+#define SDL_MAIN_HANDLED
 #include <SDL.h>
 
 #include <algorithm>
@@ -493,6 +494,7 @@ int main(int argc, char** argv) {
     if (options->recording.empty() && !apply_replay(simulation, options->replay, {}, pump_mock)) return 2;
 
     SDL_SetHint(SDL_HINT_VIDEO_HIGHDPI_DISABLED, "1");
+    SDL_SetMainReady();
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMECONTROLLER) != 0) {
         std::fprintf(stderr, "SDL initialization failed: %s\n", SDL_GetError());
         return 1;
