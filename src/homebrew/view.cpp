@@ -4036,6 +4036,8 @@ class Render::Impl
         {
             const ViewRow &row = *footer[index];
             const gfx::Rect &rect = buttons[index];
+            // Footer actions are rendered outside draw_overlay_rows; register their hitboxes explicitly.
+            if (row.enabled) add_hit(rect, "click-row:" + row.key, true);
             const float amount = control_focus("sheet-" + row.key, static_cast<int>(index) == footer_focus);
             focus_glow(overlay_, rect, amount);
             overlay_.rounded_rect(rect, 8.0F, kPanel);
