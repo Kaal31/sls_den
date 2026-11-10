@@ -788,6 +788,32 @@ int main(int argc,char** argv){
          StartupError("Controller Circle did not dismiss confirmation safely");return 8;
        }
      }
+     {
+       // After declining, the same job must still allow the user to reopen
+       // cancellation and confirm it. This catches stale modal/focus state.
+       Simulation retry_cancel(options.fixtures,{},ModelMode::Simulation);
+       if(!retry_cancel.scenario("default") ||
+          !retry_cancel.action("route:downloads") ||
+          !retry_cancel.action("click-row:job-job-1") ||
+          !retry_cancel.action("click-row:job-cancel-job-1") ||
+          !retry_cancel.action("circle")) {
+         StartupError("Cancel/retry fixture setup failed");return 8;
+       }
+       if(retry_cancel.state().navigation.modals.empty() ||
+          retry_cancel.state().navigation.modals.back().id!="job-actions" ||
+          !retry_cancel.action("click-row:job-cancel-job-1") ||
+          !retry_cancel.action("down") ||
+          retry_cancel.state().navigation.focus_key!="confirm-destructive" ||
+          !retry_cancel.action("cross")) {
+         StartupError("Cancellation cannot be reopened after controller decline");return 8;
+       }
+       const auto& jobs=retry_cancel.state().jobs;
+       const auto found=std::find_if(jobs.begin(),jobs.end(),
+         [](const Job& item){return item.id=="job-1";});
+       if(found==jobs.end() || found->state!=JobState::Cancelled) {
+         StartupError("Reopened controller cancellation did not cancel selected job");return 8;
+       }
+     }
      Log("Shared queue progress, pause/resume, cancel and recovery and controller confirmation/decline tests passed");
    }
    Log("Five-route navigation and cross/circle action smoke test passed");
