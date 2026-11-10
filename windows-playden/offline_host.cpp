@@ -687,36 +687,44 @@ int main(int argc,char** argv){
      if(!job("job-1") || job("job-1")->completed_bytes<=previous){
        StartupError("Shared download progress did not update model");return 8;
      }
-     // Reset to an unmodified queue before testing cancellation. Progress
-     // advances the entire simulation clock and may complete queued jobs.
-     if(!queue.scenario("default") || !queue.action("route:downloads")) {
-       StartupError("Could not reset shared queue for cancellation test");return 8;
+     // A scenario changes the existing model rather than guaranteeing a fresh
+     // queue. Exercise cancellation and recovery in independent instances.
+     {
+       Simulation cancel_queue(options.fixtures,{},ModelMode::Simulation);
+       if(!cancel_queue.scenario("default") ||
+          !cancel_queue.action("route:downloads") ||
+          !cancel_queue.action("click-row:job-job-1") ||
+          !cancel_queue.action("click-row:job-cancel-job-1")) {
+         StartupError("Fresh download cancellation action is not clickable");return 8;
+       }
+       if(cancel_queue.state().navigation.focus_key!="cancel") {
+         StartupError("Download cancellation confirmation did not default to decline");return 8;
+       }
+       cancel_queue.action("circle");
+       const auto& jobs=cancel_queue.state().jobs;
+       const auto found=std::find_if(jobs.begin(),jobs.end(),
+         [](const Job& item){return item.id=="job-1";});
+       if(found==jobs.end() || found->state==JobState::Cancelled) {
+         StartupError("Declined cancellation changed the download job");return 8;
+       }
      }
-     std::string pending;
-     for(const auto& j:queue.state().jobs)
-       if(j.state==JobState::Queued){pending=j.id;break;}
-     if(pending.empty()){
-       StartupError("Cancellation fixture has no queued job");return 8;
-     }
-     if(!queue.action("click-row:job-"+pending)){
-       StartupError("Queued job card cannot be clicked: "+pending);return 8;
-     }
-     if(!queue.action("click-row:job-cancel-"+pending)){
-       StartupError("Queued job Cancel button cannot be clicked: "+pending);return 8;
-     }
-     if(queue.state().navigation.focus_key!="cancel"){
-       StartupError("Cancel confirmation does not default to decline");return 8;
-     }
-     queue.action("circle");
-     if(!job(pending) || job(pending)->state==JobState::Cancelled) {
-       StartupError("Declining cancellation unexpectedly cancelled job: "+pending);return 8;
-     }
-     if(!queue.scenario("restart-recovery") || !queue.action("route:downloads") ||
-        !job("job-1") || job("job-1")->state==JobState::Downloaded ||
-        !queue.action("click-row:job-job-1") ||
-        !queue.action("click-row:job-resume-job-1") ||
-        job("job-1")->state!=JobState::Downloading){
-       StartupError("Shared interrupted job recovery failed");return 8;
+     {
+       Simulation recovery(options.fixtures,{},ModelMode::Simulation);
+       if(!recovery.scenario("restart-recovery") ||
+          !recovery.action("route:downloads")) {
+         StartupError("Interrupted transfer fixture did not initialize");return 8;
+       }
+       const auto recovery_job=[&]() -> const Job* {
+         for(const auto& item:recovery.state().jobs)
+           if(item.id=="job-1")return &item;
+         return nullptr;
+       };
+       if(!recovery_job() || recovery_job()->state==JobState::Downloaded ||
+          !recovery.action("click-row:job-job-1") ||
+          !recovery.action("click-row:job-resume-job-1") ||
+          !recovery_job() || recovery_job()->state!=JobState::Downloading) {
+         StartupError("Shared interrupted transfer recovery failed");return 8;
+       }
      }
      Log("Shared queue progress, pause/resume, cancel and recovery tests passed");
    }
