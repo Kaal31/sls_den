@@ -63,8 +63,8 @@ int main() {
   // A partial manifest can never silently discard an owned depot; the shared
   // installer handoff must keep Steam's complete plan on both Windows and PS5.
   const auto partial=sls::ResolveInstallHandoff(400,sources,
-    [](const std::string&,std::string* bytes,std::string*) {
-      *bytes="addappid(410)\\nsetManifestid(410, \\"9999\\")\\n";return true;
+    [&](const std::string&,std::string* bytes,std::string*) {
+      *bytes=valid.substr(0,valid.find("addappid(420)"));return true;
     },entitled,record);
   Check(partial.status=="incomplete" && partial.depots.size()==2 &&
         partial.depots[0].id==420 && partial.depots[0].manifest_gid==2222 &&
