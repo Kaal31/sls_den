@@ -764,7 +764,29 @@ int main(int argc,char** argv){
          StartupError("Controller-confirmed cancellation did not cancel download");return 8;
        }
      }
-     Log("Shared queue progress, pause/resume, cancel and recovery and controller confirmation tests passed");
+     {
+       // Circle must dismiss the destructive confirmation without mutating the
+       // download, and must restore navigation to the originating action menu.
+       Simulation controller_decline(options.fixtures,{},ModelMode::Simulation);
+       if(!controller_decline.scenario("default") ||
+          !controller_decline.action("route:downloads") ||
+          !controller_decline.action("click-row:job-job-1") ||
+          !controller_decline.action("click-row:job-cancel-job-1") ||
+          controller_decline.state().navigation.modals.empty() ||
+          controller_decline.state().navigation.modals.back().id!="confirmation" ||
+          !controller_decline.action("circle")) {
+         StartupError("Controller decline of download cancellation failed");return 8;
+       }
+       const auto& jobs=controller_decline.state().jobs;
+       const auto found=std::find_if(jobs.begin(),jobs.end(),
+         [](const Job& item){return item.id=="job-1";});
+       if(found==jobs.end() || found->state==JobState::Cancelled ||
+          (!controller_decline.state().navigation.modals.empty() &&
+           controller_decline.state().navigation.modals.back().id=="confirmation")) {
+         StartupError("Controller Circle did not dismiss confirmation safely");return 8;
+       }
+     }
+     Log("Shared queue progress, pause/resume, cancel and recovery and controller confirmation/decline tests passed");
    }
    Log("Five-route navigation and cross/circle action smoke test passed");
  }
