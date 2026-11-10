@@ -61,6 +61,13 @@ jobs:
         run: |
           cmake --build build/windows-offline --target playden-windows-offline playden-windows-online --parallel 3 2>&1 | Tee-Object windows-playden/offline-compile.log
           if ($LASTEXITCODE -ne 0) { throw "Windows offline Playden compile/link failed" }
+      - name: Test SLS to Playden authorization and manifest handoff
+        shell: pwsh
+        run: |
+          cmake --build build/windows-offline --target sls_playden_handoff_test --parallel 3
+          if ($LASTEXITCODE -ne 0) { throw "SLS handoff fixture compilation failed" }
+          & build/windows-offline/sls_playden_handoff_test.exe
+          if ($LASTEXITCODE -ne 0) { throw "SLS to Playden handoff contract failed" }
       - name: Smoke-test native simulation process
         shell: pwsh
         run: |
