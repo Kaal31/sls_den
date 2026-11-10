@@ -687,15 +687,29 @@ int main(int argc,char** argv){
      if(!job("job-1") || job("job-1")->completed_bytes<=previous){
        StartupError("Shared download progress did not update model");return 8;
      }
+     // Reset to an unmodified queue before testing cancellation. Progress
+     // advances the entire simulation clock and may complete queued jobs.
+     if(!queue.scenario("default") || !queue.action("route:downloads")) {
+       StartupError("Could not reset shared queue for cancellation test");return 8;
+     }
      std::string pending;
      for(const auto& j:queue.state().jobs)
        if(j.state==JobState::Queued){pending=j.id;break;}
-     if(pending.empty() || !queue.action("click-row:job-"+pending) ||
-        !queue.action("click-row:job-cancel-"+pending) ||
-        queue.state().navigation.focus_key!="cancel" ||
-        !queue.action("circle") || !job(pending) ||
-        job(pending)->state==JobState::Cancelled){
-       StartupError("Shared cancel/decline control failed");return 8;
+     if(pending.empty()){
+       StartupError("Cancellation fixture has no queued job");return 8;
+     }
+     if(!queue.action("click-row:job-"+pending)){
+       StartupError("Queued job card cannot be clicked: "+pending);return 8;
+     }
+     if(!queue.action("click-row:job-cancel-"+pending)){
+       StartupError("Queued job Cancel button cannot be clicked: "+pending);return 8;
+     }
+     if(queue.state().navigation.focus_key!="cancel"){
+       StartupError("Cancel confirmation does not default to decline");return 8;
+     }
+     queue.action("circle");
+     if(!job(pending) || job(pending)->state==JobState::Cancelled) {
+       StartupError("Declining cancellation unexpectedly cancelled job: "+pending);return 8;
      }
      if(!queue.scenario("restart-recovery") || !queue.action("route:downloads") ||
         !job("job-1") || job("job-1")->state==JobState::Downloaded ||
