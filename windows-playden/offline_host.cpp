@@ -709,6 +709,24 @@ int main(int argc,char** argv){
        }
      }
      {
+       // A second fresh fixture verifies the affirmative path separately:
+       // accepting the destructive confirmation must cancel only its job.
+       Simulation confirm_queue(options.fixtures,{},ModelMode::Simulation);
+       if(!confirm_queue.scenario("default") ||
+          !confirm_queue.action("route:downloads") ||
+          !confirm_queue.action("click-row:job-job-1") ||
+          !confirm_queue.action("click-row:job-cancel-job-1") ||
+          !confirm_queue.action("click-row:confirm-destructive")) {
+         StartupError("Confirm download cancellation action is not clickable");return 8;
+       }
+       const auto& jobs=confirm_queue.state().jobs;
+       const auto found=std::find_if(jobs.begin(),jobs.end(),
+         [](const Job& item){return item.id=="job-1";});
+       if(found==jobs.end() || found->state!=JobState::Cancelled) {
+         StartupError("Confirmed cancellation did not cancel the selected download");return 8;
+       }
+     }
+     {
        Simulation recovery(options.fixtures,{},ModelMode::Simulation);
        if(!recovery.scenario("restart-recovery") ||
           !recovery.action("route:downloads")) {
