@@ -740,6 +740,17 @@ int main(int argc, char** argv) {
                            event.cdevice.which) {
                 SDL_GameControllerClose(controller);
                 controller = nullptr;
+            } else if (event.type == SDL_MOUSEBUTTONDOWN && event.button.button == SDL_BUTTON_LEFT && render) {
+                // Both Windows and PS5's shared renderer express hitboxes in 1920x1080 UI space.
+                // Resolve the click against the most recently drawn frame.
+                int window_w = 0, window_h = 0;
+                SDL_GetWindowSize(window, &window_w, &window_h);
+                if (window_w > 0 && window_h > 0) {
+                    const float x = float(event.button.x) * 1920.0F / window_w;
+                    const float y = float(event.button.y) * 1080.0F / window_h;
+                    if (const auto action = render->hit_test(x, y))
+                        simulation.action(*action);
+                }
             } else if (event.type == SDL_TEXTINPUT) {
                 text_key_event(simulation, event, suppress_initiating_text);
             }
