@@ -2,7 +2,7 @@
 
 #include "runtime/steamworks.h"
 #include "steam/backend/app_info.h"
-#include "sls/install_metadata.h"
+#include "sls/install_handoff.h"
 #include "sls/native_source_fetch.h"
 
 #include <set>
@@ -164,7 +164,7 @@ InstallRunner::Result SteamInstallRunner::InstallApp(const StoredSession& sessio
   if (!source_url.empty()) sources.push_back({"legacy", "Legacy custom source", source_url});
   if (!sls::ActiveSources(sources).empty()) {
     HttpClient source_http(source_ca_);
-    const auto metadata = sls::ResolveInstallMetadata(id,
+    const auto metadata = sls::ResolveInstallHandoff(id,
         sources,
         sls::MakeNativeSourceFetch(source_http, cancel), target.depots);
     if (cancel.load()) { result.canceled = true; return result; }
