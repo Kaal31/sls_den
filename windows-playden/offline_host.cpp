@@ -774,6 +774,8 @@ int main(int argc,char** argv){
           !controller_decline.action("click-row:job-cancel-job-1") ||
           controller_decline.state().navigation.modals.empty() ||
           controller_decline.state().navigation.modals.back().id!="confirmation" ||
+          !controller_decline.action("down") ||
+          controller_decline.state().navigation.focus_key!="confirm-destructive" ||
           !controller_decline.action("circle")) {
          StartupError("Controller decline of download cancellation failed");return 8;
        }
