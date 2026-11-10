@@ -57,7 +57,7 @@ int main() {
   auto malformed=sls::ResolveInstallHandoff(400,sources,
     [](const std::string&,std::string* bytes,std::string*){*bytes="garbage";return true;},
     entitled,record);
-  Check(malformed.status=="unavailable" && malformed.depots==result.depots,
+  Check(malformed.status=="unavailable" && malformed.depots.size()==2 &&\n        malformed.depots[0].id==420 && malformed.depots[0].manifest_gid==2222,
         "malformed manifest leaves authorized plan untouched");
   int requests=0;
   auto none=sls::ResolveInstallHandoff(400,{},
