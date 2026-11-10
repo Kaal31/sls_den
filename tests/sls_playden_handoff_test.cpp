@@ -129,5 +129,81 @@ int main() {
     [](const std::string&,std::string*,std::string*){return false;},entitled,record);
   Check(canceled.status=="unavailable" && canceled.depots[0].manifest_gid==2222,
         "failed transport does not mutate the authorized download plan");
+
+  // Integration recovery: transport outage -> malformed response -> recovered
+  // source, with a fresh resolution on every retry. Each completed attempt
+  // must deliver exactly one consistent record to the shared installer.
+  const auto before_retries=installer.deliveries;
+  int transport_calls=0;
+  const auto offline=sls::ResolveInstallHandoff(400,sources,
+    [&](const std::string&,std::string*,std::string* error) {
+      ++transport_calls;
+      *error="fixture transport unavailable";
+      return false;
+    },entitled,record);
+  Check(offline.status=="unavailable" && transport_calls==2 &&
+        offline.resolution.attempts.size()==2 &&
+        offline.resolution.attempts[0].status=="fetch_failed" &&
+        offline.resolution.attempts[1].status=="fetch_failed" &&
+        installer.deliveries==before_retries+1 &&
+        installer.latest.status=="unavailable" &&
+        installer.latest.depots.size()==entitled.size(),
+        "network outage reports both provider failures and preserves the installer plan");
+
+  const std::string invalid="this is not a manifest";
+  int retried_calls=0;
+  const auto restored=sls::ResolveInstallHandoff(400,sources,
+    [&](const std::string&,std::string* bytes,std::string*) {
+      ++retried_calls;
+      *bytes=retried_calls==1 ? invalid : valid;
+      return true;
+    },entitled,record);
+  Check(restored.status=="matched" && restored.resolution.source_id=="backup" &&
+        restored.resolution.attempts.size()==2 &&
+        restored.resolution.attempts[0].status=="invalid_manifest" &&
+        restored.resolution.attempts[1].status=="success" &&
+        installer.deliveries==before_retries+2 &&
+        installer.latest.status=="matched" &&
+        installer.latest.provider_id=="backup" &&
+        installer.latest.depots[0].manifest_gid==2222,
+        "provider retry recovers after outage without stale error or corrupted depot metadata");
+
+  // A newly configured key must allow a later request to recover from a
+  // previous missing-key state without restarting Playden or changing depots.
+  sls::ProviderSelection only_keyed;
+  for(std::size_t index=0;index<4;++index)only_keyed.toggle(index);
+  unsigned keyed_deliveries=0;
+  auto keyed_record=[&](const sls::HandoffRecord& x) {
+    ++keyed_deliveries;
+    Check(x.depots.size()==2 && x.depots[0].manifest_gid==2222,
+          "credential recovery always retains Steam's original download plan");
+  };
+  int calls_without_key=0;
+  const auto missing=sls::ResolveCredentialHandoff(400,only_keyed,{},
+    [&](const std::string&,const std::string&,std::uint32_t,std::string_view,
+        std::string*,std::string*) {
+      ++calls_without_key;return false;
+    },entitled,keyed_record);
+  Check(missing.status=="unavailable" && calls_without_key==0 &&
+        missing.resolution.attempts.size()==5 &&
+        missing.resolution.attempts.back().status=="missing_key" &&
+        keyed_deliveries==1,"missing API key yields a retryable diagnostic without invoking transport");
+  int calls_after_key=0;
+  const auto recovered_key=sls::ResolveCredentialHandoff(400,only_keyed,
+    [](std::string_view key,std::string* value) {
+      if(key!="moapikey")return false;
+      *value="integration-fixture-key";return true;
+    },
+    [&](const std::string& provider,const std::string&,std::uint32_t app,
+        std::string_view credential,std::string* bytes,std::string*) {
+      ++calls_after_key;
+      Check(provider=="morrenus" && app==400 && credential=="integration-fixture-key",
+            "recovered credential reaches the expected provider");
+      *bytes=valid;return true;
+    },entitled,keyed_record);
+  Check(recovered_key.status=="matched" && recovered_key.resolution.source_id=="morrenus" &&
+        calls_after_key==1 && keyed_deliveries==2 &&
+        recovered_key.depots[0].manifest_gid==2222,
+        "adding provider credentials restores handoff without restarting or mutating entitlements");
   std::cout<<"PASS: SLS->Playden handoff, fallback, credential boundary and depot authorization\n";
 }
