@@ -60,6 +60,32 @@ int main() {
   Check(malformed.status=="unavailable" && malformed.depots.size()==2 &&
         malformed.depots[0].id==420 && malformed.depots[0].manifest_gid==2222,
         "malformed manifest leaves authorized plan untouched");
+  // A partial manifest can never silently discard an owned depot; the shared
+  // installer handoff must keep Steam's complete plan on both Windows and PS5.
+  const auto partial=sls::ResolveInstallHandoff(400,sources,
+    [](const std::string&,std::string* bytes,std::string*) {
+      *bytes="addappid(410)\\nsetManifestid(410, \\"9999\\")\\n";return true;
+    },entitled,record);
+  Check(partial.status=="incomplete" && partial.depots.size()==2 &&
+        partial.depots[0].id==420 && partial.depots[0].manifest_gid==2222 &&
+        partial.depots[1].id==410 && partial.depots[1].manifest_gid==1111,
+        "partial source cannot remove an authorized depot from shared install plan");
+
+  // Invalid first-source metadata should fall through to the next provider,
+  // and only one completed handoff should reach the installer observer.
+  unsigned fallback_calls=0;
+  const auto before_fallback=installer.deliveries;
+  const auto recovered=sls::ResolveInstallHandoff(400,sources,
+    [&](const std::string&,std::string* bytes,std::string*) {
+      ++fallback_calls;
+      *bytes=fallback_calls==1 ? "not a manifest" : valid;
+      return true;
+    },entitled,record);
+  Check(recovered.status=="matched" && recovered.resolution.source_id=="backup" &&
+        fallback_calls==2 && installer.deliveries==before_fallback+1 &&
+        installer.latest.provider_id=="backup" &&
+        installer.latest.depots[0].manifest_gid==2222,
+        "invalid first source falls back once and produces one authorized handoff");
   int requests=0;
   auto none=sls::ResolveInstallHandoff(400,{},
     [&](const std::string&,std::string*,std::string*){++requests;return false;},entitled,record);
