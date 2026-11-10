@@ -219,6 +219,8 @@ jobs:
           if ($exit -ne 2 -or $message -notmatch "live networking is disabled") {
             throw "Windows host did not fail closed on live networking: exit=$exit output=$message"
           }
+          # A deliberate exit code 2 is expected above; do not propagate it as the CI step exit code.
+          $global:LASTEXITCODE = 0
           Write-Host "PASS: Windows full host launches its CLI and rejects unsupported live Steam credentials"
       - name: Verify online preview simulation states
         shell: pwsh
