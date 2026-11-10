@@ -744,7 +744,27 @@ int main(int argc,char** argv){
          StartupError("Shared interrupted transfer recovery failed");return 8;
        }
      }
-     Log("Shared queue progress, pause/resume, cancel and recovery tests passed");
+     {
+       // Exercise the same destructive confirmation through controller-style
+       // navigation, not a direct mouse row activation.
+       Simulation controller_queue(options.fixtures,{},ModelMode::Simulation);
+       if(!controller_queue.scenario("default") ||
+          !controller_queue.action("route:downloads") ||
+          !controller_queue.action("click-row:job-job-1") ||
+          !controller_queue.action("click-row:job-cancel-job-1") ||
+          !controller_queue.action("down") ||
+          controller_queue.state().navigation.focus_key!="confirm-destructive" ||
+          !controller_queue.action("cross")) {
+         StartupError("Controller download cancellation confirmation failed");return 8;
+       }
+       const auto& jobs=controller_queue.state().jobs;
+       const auto found=std::find_if(jobs.begin(),jobs.end(),
+         [](const Job& item){return item.id=="job-1";});
+       if(found==jobs.end() || found->state!=JobState::Cancelled) {
+         StartupError("Controller-confirmed cancellation did not cancel download");return 8;
+       }
+     }
+     Log("Shared queue progress, pause/resume, cancel and recovery and controller confirmation tests passed");
    }
    Log("Five-route navigation and cross/circle action smoke test passed");
  }
