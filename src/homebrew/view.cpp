@@ -3296,6 +3296,39 @@ class Render::Impl
         layout.font = &fonts_.semibold;
         ui::GlyphStyle glyphs = ui::GlyphStyle::mono(kText, kBackground);
         ui::draw_hints(list, fonts_, glyphs, hints.data(), static_cast<int>(hints.size()), x, false, layout);
+        // The same controller legends are interactive on desktop. Use the
+        // glyph painter's exact spacing rather than hardcoded screen zones.
+        const auto action_for = [](ui::Button button) -> const char* {
+            switch (button) {
+            case ui::Button::cross: return "cross";
+            case ui::Button::circle: return "circle";
+            case ui::Button::square: return "square";
+            case ui::Button::triangle: return "triangle";
+            case ui::Button::options: return "options";
+            case ui::Button::l1: return "l1";
+            case ui::Button::r1: return "r1";
+            case ui::Button::l2: return "l2";
+            case ui::Button::r2: return "r2";
+            default: return nullptr;
+            }
+        };
+        const bool modal = &list == &overlay_;
+        float cursor = x;
+        for (const auto& hint : hints) {
+            const float first_width = ui::button_width(hint.button, layout.size);
+            const float second_width = hint.second == ui::Button::none ? 0.0F :
+                6.0F + ui::button_width(hint.second, layout.size);
+            const float text_width = fonts_.semibold.measure(hint.label, layout.text_size);
+            const float item_width = first_width + second_width + 12.0F + text_width;
+            if (const char* action = action_for(hint.button))
+                add_hit({cursor, layout.cy - 24.0F, item_width, 48.0F}, action, modal);
+            // Paired shoulder legends expose the second controller action
+            // on its own glyph as well.
+            if (const char* action = action_for(hint.second))
+                add_hit({cursor + first_width + 3.0F, layout.cy - 24.0F,
+                         second_width, 48.0F}, action, modal);
+            cursor += item_width + layout.item_gap;
+        }
     }
 
     void draw_footer(ui::Canvas &, const ViewData &view)
