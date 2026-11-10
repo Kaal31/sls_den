@@ -36,3 +36,15 @@ if(BUILD_TESTING AND NOT PLAYDEN_PLATFORM_PS5)
   target_link_libraries(sls_authorized_depot_plan_test PRIVATE sls_manifest)
   add_test(NAME sls_authorized_depot_plan COMMAND sls_authorized_depot_plan_test)
 endif()
+
+# Always available in the Windows preview, even with BUILD_TESTING=OFF.
+# Tests use synthetic provider/Steam responses and never require live credentials.
+if(WIN32 AND NOT PLAYDEN_PLATFORM_PS5)
+  add_executable(sls_playden_handoff_test
+      "${CMAKE_SOURCE_DIR}/tests/sls_playden_handoff_test.cpp")
+  target_compile_features(sls_playden_handoff_test PRIVATE cxx_std_20)
+  target_link_libraries(sls_playden_handoff_test PRIVATE sls_manifest)
+  if(BUILD_TESTING)
+    add_test(NAME sls_playden_handoff COMMAND sls_playden_handoff_test)
+  endif()
+endif()
