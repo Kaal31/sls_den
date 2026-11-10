@@ -717,6 +717,7 @@ int main(int argc, char** argv) {
     bool rendered_once = false;
     bool was_connected = true;
     bool suppress_initiating_text = false;
+    std::string last_mouse_hover_action;
 
     std::uint64_t last_render_us = 0;
     while (running) {
@@ -740,9 +741,40 @@ int main(int argc, char** argv) {
                            event.cdevice.which) {
                 SDL_GameControllerClose(controller);
                 controller = nullptr;
-            } else if (event.type == SDL_MOUSEBUTTONDOWN && event.button.button == SDL_BUTTON_LEFT && render) {
-                // Both Windows and PS5's shared renderer express hitboxes in 1920x1080 UI space.
-                // Resolve the click against the most recently drawn frame.
+            } else if (event.type == SDL_MOUSEMOTION && render && !options->headless) {
+                // Hover selects covers without activating them. Do not repeat
+                // the same selection on every movement pixel.
+                int window_w = 0, window_h = 0;
+                SDL_GetWindowSize(window, &window_w, &window_h);
+                if (window_w > 0 && window_h > 0) {
+                    const float x = float(event.motion.x) * 1920.0F / window_w;
+                    const float y = float(event.motion.y) * 1080.0F / window_h;
+                    if (const auto action = render->hover_test(x, y)) {
+                        if (*action != last_mouse_hover_action) {
+                            simulation.action(*action);
+                            last_mouse_hover_action = *action;
+                        }
+                    } else last_mouse_hover_action.clear();
+                }
+            } else if (event.type == SDL_MOUSEWHEEL && !options->headless) {
+                const auto& state = simulation.state();
+                const bool home = state.navigation.route == playden::homebrew::Route::Home &&
+                                  state.navigation.modals.empty();
+                const bool horizontal = (SDL_GetModState() & KMOD_SHIFT) != 0;
+                const int direction = event.wheel.direction == SDL_MOUSEWHEEL_FLIPPED ? -1 : 1;
+                const auto repeat = [&](int delta, const char* positive, const char* negative) {
+                    for (int i = 0; i < std::min(6, std::abs(delta)); ++i)
+                        simulation.action(delta > 0 ? positive : negative);
+                };
+                if (event.wheel.x) repeat(event.wheel.x * direction, "right", "left");
+                if (event.wheel.y) {
+                    const int delta = event.wheel.y * direction;
+                    if (horizontal || home) repeat(delta, "left", "right");
+                    else repeat(delta, "up", "down");
+                }
+            } else if (event.type == SDL_MOUSEBUTTONDOWN && event.button.button == SDL_BUTTON_LEFT &&
+                       render && !options->headless) {
+                // Resolve against the last rendered frame's hitboxes.
                 int window_w = 0, window_h = 0;
                 SDL_GetWindowSize(window, &window_w, &window_h);
                 if (window_w > 0 && window_h > 0) {
