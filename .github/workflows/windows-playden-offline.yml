@@ -204,6 +204,34 @@ jobs:
           if ($LASTEXITCODE -ne 0) {
             throw "Shared host compile failed; inspect full-host-build.log for the next portability error"
           }
+      - name: Verify Windows full-host entrypoint and reject unsupported live credentials
+        shell: pwsh
+        run: |
+          $env:PATH = "C:\\vcpkg\\installed\\x64-windows\\bin;" + $env:PATH
+          $exe = (Resolve-Path "build/windows-offline/playden-homebrew.exe").Path
+          # Exercise the linked executable without requiring a GPU or a Steam account.
+          & $exe --help 2>&1 | Tee-Object -Variable helpText
+          if ($LASTEXITCODE -ne 0 -or (($helpText | Out-String) -notmatch "usage:")) {
+            throw "Windows shared host CLI entrypoint failed"
+          }
+          $message = & $exe --live-network 2>&1 | Out-String
+          $exit = $LASTEXITCODE
+          if ($exit -ne 2 -or $message -notmatch "live networking is disabled") {
+            throw "Windows host did not fail closed on live networking: exit=$exit output=$message"
+          }
+          Write-Host "PASS: Windows full host launches its CLI and rejects unsupported live Steam credentials"
+      - name: Verify online preview simulation states
+        shell: pwsh
+        run: |
+          $env:PATH = "C:\\vcpkg\\installed\\x64-windows\\bin;" + $env:PATH
+          $exe = (Resolve-Path "build/windows-offline/playden-windows-online.exe").Path
+          foreach ($scenario in @("first-run", "offline")) {
+            & $exe --scenario $scenario --self-test
+            if ($LASTEXITCODE -ne 0) { throw "Online preview simulation failed scenario $scenario" }
+          }
+          & $exe --navigation-self-test --self-test
+          if ($LASTEXITCODE -ne 0) { throw "Online preview navigation self-test failed" }
+          Write-Host "PASS: public Store preview offline-safe simulation and navigation"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
