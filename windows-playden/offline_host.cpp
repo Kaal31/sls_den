@@ -657,6 +657,55 @@ int main(int argc,char** argv){
 
 
 
+   // Shared install queue acceptance tests reuse the exact mouse click-row actions.
+   {
+     using namespace playden::homebrew;
+     Simulation queue(options.fixtures,{},ModelMode::Simulation);
+     const auto job=[&](std::string_view id)->const Job* {
+       for(const auto& j:queue.state().jobs)if(j.id==id)return &j;
+       return nullptr;
+     };
+     const auto row=[&](std::string_view key)->bool {
+       for(const auto& r:queue.view().rows)if(r.key==key && r.enabled)return true;
+       return false;
+     };
+     if(!queue.scenario("default") || !queue.action("route:downloads") ||
+        !queue.action("click-row:job-job-1")){
+       StartupError("Shared queue card failed mouse-style activation");return 8;
+     }
+     if(row("job-pause-job-1") && !queue.action("click-row:job-pause-job-1")){
+       StartupError("Shared pause action failed mouse-style activation");return 8;
+     }
+     queue.tick(5);
+     if(!job("job-1") || job("job-1")->state!=JobState::Paused ||
+        !queue.action("click-row:job-job-1") ||
+        !queue.action("click-row:job-resume-job-1")){
+       StartupError("Shared download pause/resume control failed");return 8;
+     }
+     const auto previous=job("job-1")->completed_bytes;
+     queue.tick(30);
+     if(!job("job-1") || job("job-1")->completed_bytes<=previous){
+       StartupError("Shared download progress did not update model");return 8;
+     }
+     std::string pending;
+     for(const auto& j:queue.state().jobs)
+       if(j.state==JobState::Queued){pending=j.id;break;}
+     if(pending.empty() || !queue.action("click-row:job-"+pending) ||
+        !queue.action("click-row:job-cancel-"+pending) ||
+        queue.state().navigation.focus_key!="cancel" ||
+        !queue.action("circle") || !job(pending) ||
+        job(pending)->state==JobState::Cancelled){
+       StartupError("Shared cancel/decline control failed");return 8;
+     }
+     if(!queue.scenario("restart-recovery") || !queue.action("route:downloads") ||
+        !job("job-1") || job("job-1")->state==JobState::Downloaded ||
+        !queue.action("click-row:job-job-1") ||
+        !queue.action("click-row:job-resume-job-1") ||
+        job("job-1")->state!=JobState::Downloading){
+       StartupError("Shared interrupted job recovery failed");return 8;
+     }
+     Log("Shared queue progress, pause/resume, cancel and recovery tests passed");
+   }
    Log("Five-route navigation and cross/circle action smoke test passed");
  }
  if(options.validate_assets){
