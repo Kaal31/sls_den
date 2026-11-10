@@ -707,7 +707,13 @@ int main(int argc,char** argv){
  SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS,SDL_GL_CONTEXT_FORWARD_COMPATIBLE_FLAG);
  SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER,1);
  Log("Creating OpenGL 4.1 window and context");
- SDL_Window* window=SDL_CreateWindow("Lua Den - Playden Offline Preview",
+ SDL_Window* window=SDL_CreateWindow(
+#ifdef PLAYDEN_WINDOWS_PUBLIC_CATALOG
+      "Lua Den - Playden Online Store Preview",
+#else
+      "Lua Den - Playden Offline Preview",
+#endif
+
    SDL_WINDOWPOS_CENTERED,SDL_WINDOWPOS_CENTERED,options.width,options.height,
    SDL_WINDOW_OPENGL|SDL_WINDOW_RESIZABLE|(options.headless?SDL_WINDOW_HIDDEN:SDL_WINDOW_SHOWN));
  SDL_GLContext context=window?SDL_GL_CreateContext(window):nullptr;
