@@ -1,6 +1,6 @@
 // Real shared SLS->Playden manifest handoff test with a recording installer adapter.
 // Offline deterministic inputs. No real Steam credentials or network requests.
-#include "sls/install_handoff.h"
+#include "sls/credential_handoff.h"
 #include <cstdlib>
 #include <iostream>
 #include <string>
