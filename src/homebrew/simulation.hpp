@@ -738,6 +738,7 @@ public:
     void UpdateSteamCatalogResults(std::string query,sls::SteamCatalogPage page);
     void FailSteamCatalogSearch(std::string query);
     [[nodiscard]] std::optional<std::uint32_t> TakeAddedGameSourceRequest();
+    [[nodiscard]] const sls::ProviderSelection& SelectedSlsSources() const noexcept { return sls_sources_; }
     void UpdateAddedGameSourceStatus(std::uint32_t app_id, std::string status);
     void SetDenuvoKnown(std::set<std::uint32_t> appids);
     void SetProtonDbRatings(std::map<std::uint32_t,std::string> ratings);
