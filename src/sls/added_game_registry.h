@@ -38,8 +38,12 @@ public:
     auto* record=Find(app);
     if(!record || source.empty() || source.size()>128 || metadata.app_id!=app ||
        metadata.depots.size()>4096)return false;
-    for(const auto& depot:metadata.depots)
-      if(!depot.depot_id || !depot.manifest_gid)return false;
+    bool has_manifest=false;
+    for(const auto& depot:metadata.depots) {
+      if(!depot.depot_id)return false;
+      has_manifest |= depot.manifest_gid!=0;
+    }
+    if(!has_manifest)return false;
     auto& writable=entries_.at(app);
     writable.source_id=std::move(source);
     writable.metadata=metadata;
@@ -125,7 +129,7 @@ public:
         std::uint64_t depot_id=0,gid=0;
         int enabled=0;
         if(!(in>>depot_id>>gid>>enabled) || !depot_id || depot_id>UINT32_MAX ||
-           !gid || (enabled!=0 && enabled!=1))return false;
+           (enabled!=0 && enabled!=1))return false;
         for(const auto& prior:entry.metadata.depots)
           if(prior.depot_id==depot_id)return false;
         entry.metadata.depots.push_back({static_cast<std::uint32_t>(depot_id),gid,enabled!=0});
