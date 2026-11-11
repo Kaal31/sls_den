@@ -56,6 +56,10 @@ class HandoffJobQueue {
       } else next.error="Depot authorization mismatch";
     }
     auto existing=Find(next.app_id);
+    // Repeated discovery must not reset an active or completed installation.
+    if(existing && existing->state!=HandoffJobState::AwaitingAuthorization &&
+       existing->state!=HandoffJobState::Failed &&
+       existing->state!=HandoffJobState::Cancelled) return *existing;
     if(existing) *existing=std::move(next);
     else {
       jobs_.push_back(std::move(next));
@@ -122,10 +126,17 @@ class HandoffJobQueue {
     job->error.clear();
     return true;
   }
-  bool Cancel(std::uint32_t app_id) {
+  using CancelActiveTransfer=std::function<bool(std::uint32_t)>;
+  bool Cancel(std::uint32_t app_id,const CancelActiveTransfer& cancel_active={}) {
     auto* job=Find(app_id);
     if(!job || job->state==HandoffJobState::Installed ||
        job->state==HandoffJobState::Cancelled)return false;
+    const bool active=job->state==HandoffJobState::Downloading ||
+                      job->state==HandoffJobState::Verifying;
+    if(active && (!cancel_active || !cancel_active(app_id))) {
+      job->error="Installer cancellation was not acknowledged";
+      return false;
+    }
     job->state=HandoffJobState::Cancelled;
     job->error.clear();
     return true;
