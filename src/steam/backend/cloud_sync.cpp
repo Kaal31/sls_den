@@ -265,7 +265,8 @@ void Enumerate(const std::string& root, const std::string& relative, bool recurs
   if(ec)return;
   for(;it!=end && out->size()<kMaxLocalSaveFiles;it.increment(ec)){
     if(ec)break;
-    const auto name=it->path().filename().u8string();
+    const auto utf8_name=it->path().filename().u8string();
+    const std::string name(utf8_name.begin(),utf8_name.end());
     if(name=="."||name==".."||name.rfind(".playden",0)==0 ||
        name.find(".playden-partial")!=std::string::npos)continue;
     const auto status=it->symlink_status(ec);
