@@ -41,6 +41,7 @@
 #include <memory>
 #include "homebrew/store_fetch.hpp"
 #include "sls/source_list.h"
+#include "sls/steam_catalog_worker.h"
 #include <optional>
 #include <string>
 #include <string_view>
@@ -673,6 +674,11 @@ int main(int argc, char** argv) {
         artwork = std::make_unique<playden::homebrew::ArtworkService>(*artwork_backend);
     }
     auto render = std::make_unique<playden::homebrew::Render>(PLAYDEN_HOMEBREW_ASSETS_DIR, artwork.get());
+    // Shared public catalog/SLS discovery also runs in the native host.
+    // Search and manifest metadata are not entitlements or download commands.
+    std::unique_ptr<playden::sls::SteamCatalogWorker> discovery;
+    if (!options->simulation && options->network_opt_in)
+        discovery = std::make_unique<playden::sls::SteamCatalogWorker>(PLAYDEN_HOMEBREW_CA_BUNDLE);
     if (!options->capture.empty() && options->recording.empty()) {
         // Settle presentation motion without advancing the manual fixture clock.
         for (int settle = 0; settle < 16; ++settle)
@@ -822,6 +828,28 @@ int main(int argc, char** argv) {
         last_render_us = now_us;
         if (services) services->Tick();
         pump_mock();
+        if (auto query = simulation.TakeSteamCatalogSearchRequest()) {
+            if (discovery) discovery->Search(*query);
+            else simulation.FailSteamCatalogSearch(*query);
+        }
+        if (auto app_id = simulation.TakeAddedGameSourceRequest()) {
+            if (discovery) discovery->Discover(*app_id, simulation.SelectedSlsSources());
+            else simulation.UpdateAddedGameSourceStatus(*app_id,
+                "Network discovery unavailable · Enable network access in native host");
+        }
+        if (discovery) {
+            if (auto result = discovery->Poll()) {
+                if (result->ok) simulation.UpdateSteamCatalogResults(result->query, std::move(result->page));
+                else simulation.FailSteamCatalogSearch(result->query);
+            }
+            if (auto result = discovery->PollDiscovery()) {
+                simulation.UpdateAddedGameSourceStatus(result->app_id,
+                    result->resolution.ok
+                        ? "SLS: " + result->resolution.source_id +
+                          " · Metadata found · Download authorization unverified"
+                        : "No usable SLS manifest · Check source configuration and retry");
+            }
+        }
         render->draw(simulation, width, height, options->headless ? 1.0F / 60.0F : frame_dt);
         rendered_once = true;
         if (simulation.state().quit_requested) running = false;
