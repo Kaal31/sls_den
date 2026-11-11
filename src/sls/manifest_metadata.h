@@ -8,6 +8,7 @@ namespace playden::sls {
 struct DepotPin {
   std::uint32_t depot_id = 0;
   std::uint64_t manifest_gid = 0;
+  std::uint64_t declared_manifest_bytes = 0; // Lua metadata size, NOT installed/download size
   bool enabled = true;
 };
 struct ManifestMetadata {
