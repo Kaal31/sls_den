@@ -77,6 +77,22 @@ setManifestid(620, "999999")
         queue.Find(620)->state==sls::HandoffJobState::Downloading &&
         queue.Find(620)->attempts==2,
         "failed job retry queues exactly one new submission");
+  Check(queue.Prepare(recorded,licensed).state==sls::HandoffJobState::Downloading,
+        "source re-discovery cannot reset in-flight download");
+  sls::HandoffJobQueue active_cancel;
+  active_cancel.Prepare(recorded,licensed);
+  Check(active_cancel.Submit(620,[&](std::uint32_t,const auto&,std::string*) {
+      return true;
+    }) &&
+        !active_cancel.Cancel(620) &&
+        active_cancel.Find(620)->state==sls::HandoffJobState::Downloading,
+        "active transfer cannot be marked cancelled without adapter acknowledgement");
+  bool cancel_called=false;
+  Check(active_cancel.Cancel(620,[&](std::uint32_t app) {
+      cancel_called=true;return app==620;
+    }) && cancel_called &&
+        active_cancel.Find(620)->state==sls::HandoffJobState::Cancelled,
+        "acknowledged cancellation stops an active transfer");
   Check(queue.Progress(620,50,100) && !queue.Progress(620,40,100) &&
         queue.Progress(620,100,100) &&
         queue.Find(620)->state==sls::HandoffJobState::Verifying,
