@@ -46,6 +46,24 @@ int main() {
         installer.latest.depots[1].id==410 && installer.latest.depots[1].manifest_gid==1111,
         "installer receives Steam authorized depot order and GIDs, never provider overrides");
 
+  // A successful first source must short-circuit the fallback chain: repeated
+  // provider requests would duplicate work and could change the chosen source.
+  unsigned primary_requests=0;
+  const auto before_primary=installer.deliveries;
+  const auto primary=sls::ResolveInstallHandoff(400,sources,
+    [&](const std::string& url,std::string* bytes,std::string*) {
+      ++primary_requests;
+      Check(url.find("primary.example")!=std::string::npos,
+            "successful primary source prevents requests to fallback providers");
+      *bytes=valid;return true;
+    },entitled,record);
+  Check(primary.status=="matched" && primary.resolution.source_id=="primary" &&
+        primary_requests==1 && installer.deliveries==before_primary+1 &&
+        installer.latest.provider_id=="primary" &&
+        installer.latest.depots.size()==entitled.size() &&
+        installer.latest.depots[0].manifest_gid==2222,
+        "successful primary source produces exactly one authorized installer handoff");
+
   calls.clear();
   auto bad=sls::ResolveInstallHandoff(400,sources,
     [&](const std::string& url,std::string* bytes,std::string*) {
