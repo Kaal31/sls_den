@@ -4,6 +4,8 @@
 #include <cstdint>
 #include <string>
 #include <string_view>
+#include <functional>
+#include <cstddef>
 #include <set>
 
 namespace playden::sls {
@@ -47,8 +49,13 @@ inline bool target(std::string_view name,uint32_t appid) {
   return file==std::to_string(appid)+".lua";
 }
 }
-inline bool DecodeStoredZipManifest(std::string_view zip, uint32_t appid,
-                                    std::string* output, std::string* error) {
+// The decoder is injected so the shared ZIP validator stays independent of
+// platform decompression libraries. Inflate must decode raw ZIP DEFLATE and
+// return exactly the declared, bounded uncompressed size.
+using RawZipInflate = std::function<bool(std::string_view, std::size_t, std::string*)>;
+inline bool DecodeZipManifest(std::string_view zip, uint32_t appid,
+                              std::string* output, std::string* error,
+                              const RawZipInflate& inflate = {}) {
   auto fail=[&](const char* why){ if(error)*error=why; return false; };
   if(!output || !appid || zip.size()>1024*1024 || zip.size()<22)
     return fail("invalid archive size");
@@ -94,7 +101,9 @@ inline bool DecodeStoredZipManifest(std::string_view zip, uint32_t appid,
     if(!zip_detail::safe_name(name) || !names.insert(std::string(name)).second)
       return fail("unsafe or duplicate filename");
     if(zip_detail::target(name,appid)) {
-      if(found || method!=0 || compressed!=uncompressed ||
+      if(found || (method!=0 && method!=8) ||
+         (method==0 && compressed!=uncompressed) ||
+         (method==8 && (!inflate || !uncompressed)) ||
          local>zip.size() || zip.size()-local<30)
         return fail("unsupported or duplicate manifest");
       uint32_t local_sig,local_crc,local_c,local_u;
@@ -115,9 +124,14 @@ inline bool DecodeStoredZipManifest(std::string_view zip, uint32_t appid,
          compressed>cd_offset-data ||
          zip.substr(local+30,local_name)!=name)
         return fail("inconsistent local entry");
-      auto bytes=zip.substr(data,compressed);
-      if(zip_detail::crc32(bytes)!=crc) return fail("CRC mismatch");
-      selected.assign(bytes.data(),bytes.size());
+      const auto bytes=zip.substr(data,compressed);
+      std::string decoded;
+      if(method==8) {
+        if(!inflate(bytes,uncompressed,&decoded) || decoded.size()!=uncompressed)
+          return fail("invalid DEFLATE payload");
+      } else decoded.assign(bytes.data(),bytes.size());
+      if(zip_detail::crc32(decoded)!=crc) return fail("CRC mismatch");
+      selected=std::move(decoded);
       found=true;
     }
     p+=length;
@@ -127,5 +141,10 @@ inline bool DecodeStoredZipManifest(std::string_view zip, uint32_t appid,
   *output=std::move(selected);
   if(error)error->clear();
   return true;
+} 
+// Compatibility wrapper for callers that intentionally accept stored entries only.
+inline bool DecodeStoredZipManifest(std::string_view zip, uint32_t appid,
+                                    std::string* output, std::string* error) {
+  return DecodeZipManifest(zip,appid,output,error);
 }
 } // namespace playden::sls
