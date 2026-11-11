@@ -47,4 +47,14 @@ if(WIN32 AND NOT PLAYDEN_PLATFORM_PS5)
   if(BUILD_TESTING)
     add_test(NAME sls_playden_handoff COMMAND sls_playden_handoff_test)
   endif()
+  add_executable(sls_zip_inflate_test
+      "${CMAKE_SOURCE_DIR}/tests/sls_zip_inflate_test.cpp"
+      "${CMAKE_SOURCE_DIR}/src/sls/zip_inflate.cpp")
+  target_include_directories(sls_zip_inflate_test PRIVATE
+      "${CMAKE_SOURCE_DIR}/src" "${CMAKE_SOURCE_DIR}/third_party/stb")
+  target_compile_features(sls_zip_inflate_test PRIVATE cxx_std_20)
+  target_link_libraries(sls_zip_inflate_test PRIVATE sls_manifest)
+  if(BUILD_TESTING)
+    add_test(NAME sls_zip_inflate COMMAND sls_zip_inflate_test)
+  endif()
 endif()
