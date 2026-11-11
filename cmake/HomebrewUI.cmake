@@ -499,6 +499,7 @@ if(WIN32)
     add_executable(playden-windows-online
         "${CMAKE_SOURCE_DIR}/windows-playden/offline_host.cpp"
         "${CMAKE_SOURCE_DIR}/src/sls/steam_catalog_worker.cpp"
+        "${CMAKE_SOURCE_DIR}/src/sls/zip_inflate.cpp"
         "${CMAKE_SOURCE_DIR}/src/sls/steam_catalog_search.cpp")
     target_compile_features(playden-windows-online PRIVATE cxx_std_20)
     target_compile_definitions(playden-windows-online PRIVATE
