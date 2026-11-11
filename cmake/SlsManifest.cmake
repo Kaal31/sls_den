@@ -40,6 +40,13 @@ endif()
 # Always available in the Windows preview, even with BUILD_TESTING=OFF.
 # Tests use synthetic provider/Steam responses and never require live credentials.
 if(WIN32 AND NOT PLAYDEN_PLATFORM_PS5)
+  add_executable(sls_install_job_queue_test
+      "${CMAKE_SOURCE_DIR}/tests/sls_install_job_queue_test.cpp")
+  target_compile_features(sls_install_job_queue_test PRIVATE cxx_std_20)
+  target_link_libraries(sls_install_job_queue_test PRIVATE sls_manifest)
+  if(BUILD_TESTING)
+    add_test(NAME sls_install_job_queue COMMAND sls_install_job_queue_test)
+  endif()
   add_executable(sls_playden_handoff_test
       "${CMAKE_SOURCE_DIR}/tests/sls_playden_handoff_test.cpp")
   target_compile_features(sls_playden_handoff_test PRIVATE cxx_std_20)
