@@ -285,6 +285,9 @@ int main() {
         }
         // An empty path disables live writes and surfaces a settings load error.
         simulation.SetGameSettingsFile(settings_file.value_or(std::filesystem::path{}));
+        // Catalog-added titles are independent of account entitlements and
+        // survive PS5 application restarts in the user's Playden data root.
+        simulation.SetSlsSourcePreferencePath(std::filesystem::path(user_root)/"sls"/"sources.ini");
         playden::Storage auth_storage(user_root);
         // One line per Steam CM logon or refusal, with Steam's result code (#51).
         playden::steam::SetCmLog([](const std::string& line) {
@@ -850,6 +853,15 @@ int main() {
             if(auto result=catalog_worker.Poll()) {
                 if(result->ok)simulation.UpdateSteamCatalogResults(std::move(result->query),std::move(result->page));
                 else simulation.FailSteamCatalogSearch(std::move(result->query));
+            }
+            if(auto app_id=simulation.TakeAddedGameSourceRequest())
+                catalog_worker.Discover(*app_id,simulation.SelectedSlsSources());
+            if(auto result=catalog_worker.PollDiscovery()) {
+                simulation.UpdateAddedGameSourceStatus(result->app_id,
+                    result->resolution.ok
+                        ? "SLS: "+result->resolution.source_id+
+                          " · Metadata found · Download authorization unverified"
+                        : "No usable SLS manifest · Check sources and retry");
             }
             services.Tick();
             if(now>=denuvo_next_poll) {
