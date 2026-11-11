@@ -20,4 +20,24 @@ int main() {
   assert(ParseSteamStoreSearchResponse(
     R"({"total_count":3,"results_html":"<a data-ds-appid=\"10\"><span class=\"title\">A</span></a><a data-ds-appid=\"10\"><span class=\"title\">Duplicate</span></a>"})",&page));
   assert(page.titles.size()==1);
+  // Search results are public catalog entries, not proof of ownership.
+  // Validate pagination and URL encoding before any shared UI uses the query.
+  const auto paged=SteamStoreSearchUrl("A&B / C",30,25);
+  assert(paged.find("term=A%26B+%2F+C")!=std::string::npos);
+  assert(paged.find("start=30&count=25")!=std::string::npos);
+  assert(SteamStoreSearchUrl("Valid",10001,1).empty());
+  assert(SteamStoreSearchUrl("Valid",0,0).empty());
+  assert(SteamStoreSearchUrl("Valid",0,100).size()>0);
+  assert(SteamStoreSearchUrl(std::string(101,'x')).empty());
+
+  // Malformed and out-of-range app IDs cannot become installable catalog
+  // entries. A failed parse must preserve the last successfully loaded page.
+  assert(ParseSteamStoreSearchResponse(
+    R"({"total_count":999999999,"results_html":"<a data-ds-appid=\\"0\\"><span class=\\"title\\">Zero</span></a><a data-ds-appid=\\"4294967296\\"><span class=\\"title\\">Overflow</span></a><a data-ds-appid=\\"42\\"><span class=\\"title\\">Valid &amp; Safe</span></a>"})",
+    &page));
+  assert(page.total==1000000 && page.titles.size()==1);
+  assert(page.titles[0].app_id==42 && page.titles[0].name=="Valid & Safe");
+  assert(!ParseSteamStoreSearchResponse(R"({"total_count":1})",&page));
+  assert(page.total==1000000 && page.titles.size()==1);
+  assert(!ParseSteamStoreSearchResponse("{}",nullptr));
 }
