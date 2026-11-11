@@ -843,11 +843,7 @@ int main(int argc, char** argv) {
                 else simulation.FailSteamCatalogSearch(result->query);
             }
             if (auto result = discovery->PollDiscovery()) {
-                simulation.UpdateAddedGameSourceStatus(result->app_id,
-                    result->resolution.ok
-                        ? "SLS: " + result->resolution.source_id +
-                          " · Metadata found · Download authorization unverified"
-                        : "No usable SLS manifest · Check source configuration and retry");
+                simulation.UpdateAddedGameDiscovery(result->app_id,result->resolution);
             }
         }
         render->draw(simulation, width, height, options->headless ? 1.0F / 60.0F : frame_dt);
