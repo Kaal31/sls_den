@@ -502,6 +502,7 @@ if(WIN32)
         "${CMAKE_SOURCE_DIR}/src/sls/zip_inflate.cpp"
         "${CMAKE_SOURCE_DIR}/src/sls/steam_catalog_search.cpp")
     target_compile_features(playden-windows-online PRIVATE cxx_std_20)
+    target_include_directories(playden-windows-online PRIVATE "${PLAYDEN_STB_IMAGE_INCLUDE_DIR}")
     target_compile_definitions(playden-windows-online PRIVATE
         SDL_MAIN_HANDLED=1 GL_GLEXT_PROTOTYPES=1 NOMINMAX=1 WIN32_LEAN_AND_MEAN=1
         PLAYDEN_WINDOWS_PUBLIC_CATALOG=1
