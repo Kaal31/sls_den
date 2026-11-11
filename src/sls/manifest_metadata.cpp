@@ -64,6 +64,16 @@ bool ParseManifestMetadata(std::uint32_t app_id, std::string_view source,
       auto it = depots.find(static_cast<std::uint32_t>(id));
       if (it == depots.end()) return fail("manifest has no declared depot");
       it->second.manifest_gid = gid;
+      // The optional third argument is the serialized manifest blob size,
+      // never the install size or network download size.
+      const auto tail=trim(rhs.substr(close+1));
+      if(!tail.empty()) {
+        if(tail.front()!=',')return fail("invalid manifest size separator");
+        std::uint64_t bytes=0;
+        if(!number(tail.substr(1),&bytes) || bytes>1024*1024)
+          return fail("invalid manifest blob size");
+        it->second.declared_manifest_bytes=bytes;
+      }
     }
     // Other Lua commands are deliberately ignored, never executed.
   }
