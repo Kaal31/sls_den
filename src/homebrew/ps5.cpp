@@ -857,11 +857,7 @@ int main() {
             if(auto app_id=simulation.TakeAddedGameSourceRequest())
                 catalog_worker.Discover(*app_id,simulation.SelectedSlsSources());
             if(auto result=catalog_worker.PollDiscovery()) {
-                simulation.UpdateAddedGameSourceStatus(result->app_id,
-                    result->resolution.ok
-                        ? "SLS: "+result->resolution.source_id+
-                          " · Metadata found · Download authorization unverified"
-                        : "No usable SLS manifest · Check sources and retry");
+                simulation.UpdateAddedGameDiscovery(result->app_id,result->resolution);
             }
             services.Tick();
             if(now>=denuvo_next_poll) {
