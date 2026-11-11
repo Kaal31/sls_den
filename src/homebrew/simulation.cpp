@@ -849,6 +849,15 @@ void Simulation::FailSteamCatalogSearch(std::string query) {
         catalog_search_status_="Store search failed · retry";
 }
 
+std::optional<std::uint32_t> Simulation::TakeAddedGameSourceRequest() {
+    return std::exchange(pending_added_source_request_,std::nullopt);
+}
+void Simulation::UpdateAddedGameSourceStatus(std::uint32_t app_id,std::string status) {
+    if(!manually_added_games_.count(app_id))return;
+    added_source_status_[app_id]=std::move(status);
+    rebuild_view();
+}
+
 void Simulation::SaveAddedGames() const {
     if(sls_source_preference_path_.empty())return;
     const auto target=sls_source_preference_path_.parent_path()/"added-games.txt";
@@ -4901,6 +4910,12 @@ void Simulation::rebuild_view() {
             auto& status=row("added-status-"+std::to_string(app_id),RowKind::Action,
                 "Preparation and fixes · "+name,"added-game-status");
             status.subtitle="No authorized installation associated with this registration · Apply Fix unavailable";
+            auto& discover=row("added-discover-"+std::to_string(app_id),RowKind::Action,
+                "Check SLS sources · "+name,"added-game-discover");
+            const auto diagnostic=added_source_status_.find(app_id);
+            discover.subtitle=diagnostic==added_source_status_.end() ?
+                "Check configured sources for metadata · does not grant install access" :
+                diagnostic->second;
             auto& remove=row("remove-added-"+std::to_string(app_id),RowKind::Action,
                 "Remove "+name+" from Lua Den","added-game-remove");
             remove.subtitle="Unregister only · Does not delete any installed files";
@@ -6909,6 +6924,18 @@ void Simulation::activate() {
             }
         }
     }
+    else if(action_name=="added-game-discover") {
+        constexpr std::string_view prefix="added-discover-";
+        if(selected.key.rfind(prefix,0)==0) {
+            const std::string value=selected.key.substr(prefix.size());
+            const auto found=std::find_if(manually_added_games_.begin(),manually_added_games_.end(),
+                [&](const auto& entry){return std::to_string(entry.first)==value;});
+            if(found!=manually_added_games_.end()) {
+                pending_added_source_request_=found->first;
+                added_source_status_[found->first]="Checking SLS sources…";
+            }
+        }
+    }
     else if(action_name=="added-game-status") {
         if(selected.key.rfind("added-status-",0)==0)
             push_notice({"registration-not-prepared",
@@ -6924,6 +6951,8 @@ void Simulation::activate() {
                 [&](const auto& entry){return std::to_string(entry.first)==value;});
             if(hit!=manually_added_games_.end()) {
                 if(remove) {
+                    added_source_status_.erase(hit->first);
+                    if(pending_added_source_request_==hit->first) pending_added_source_request_.reset();
                     manually_added_games_.erase(hit);
                     SaveAddedGames();
                     push_notice({"added-game-removed","Manual Lua Den registration removed; Steam ownership was unchanged.","",false,0,true});
