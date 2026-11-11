@@ -1071,9 +1071,24 @@ setManifestid(620, "123456789")
      }
 #endif
      if(auto app=simulation.TakeAddedGameSourceRequest()) {
+#ifdef PLAYDEN_WINDOWS_PUBLIC_CATALOG
+       if(catalog_worker) catalog_worker->Discover(*app,simulation.SelectedSlsSources());
+       else simulation.UpdateAddedGameSourceStatus(*app,"Source discovery transport unavailable");
+#else
        simulation.UpdateAddedGameSourceStatus(*app,
-         "Fixture only · Native remote SLS discovery not connected in preview");
+         "Offline preview · Use online preview to check configured SLS sources");
+#endif
      }
+#ifdef PLAYDEN_WINDOWS_PUBLIC_CATALOG
+     if(catalog_worker) {
+       if(auto outcome=catalog_worker->PollDiscovery()) {
+         simulation.UpdateAddedGameSourceStatus(outcome->app_id,
+           outcome->resolution.ok ?
+             ("SLS: "+outcome->resolution.source_id+" · Metadata found · Download authorization unverified") :
+             "No usable SLS manifest · Check providers or retry");
+       }
+     }
+#endif
      simulation.tick();
      renderer.draw(simulation,options.width,options.height,
          std::clamp(dt,0.001f,0.1f));
