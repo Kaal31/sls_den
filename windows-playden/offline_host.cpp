@@ -5,6 +5,7 @@
 #include "homebrew/simulation.hpp"
 #include "sls/provider_preferences.h"
 #include "sls/provider_discovery.h"
+#include "sls/install_metadata.h"
 #ifdef PLAYDEN_WINDOWS_PUBLIC_CATALOG
 #include "sls/steam_catalog_worker.h"
 #endif
@@ -290,6 +291,44 @@ int main(int argc,char** argv){
    if(!simulation.action("focus:steam-catalog-add-620") || !simulation.action("cross")) {
      StartupError("Public result Add Game action failed");return 8;
    }
+   // Search -> Add Game -> SLS provider discovery -> installer assessment.
+   if(!simulation.action("route:library") ||
+      !simulation.action("focus:added-discover-620") ||
+      !simulation.action("cross")) {
+     StartupError("Added Steam title cannot request SLS discovery");return 8;
+   }
+   const auto source_request=simulation.TakeAddedGameSourceRequest();
+   if(source_request!=std::optional<std::uint32_t>{620} ||
+      simulation.TakeAddedGameSourceRequest()) {
+     StartupError("Added-game discovery request not delivered exactly once");return 8;
+   }
+   const std::vector<playden::sls::Source> discovery_sources{
+     {"first","First","https://first.example/{appid}.lua",true},
+     {"second","Second","https://second.example/{appid}.lua",true}};
+   const auto fetch_fixture=[](const std::string& url,std::string* payload,std::string*) {
+     if(url.find("first.example")!=std::string::npos)return false;
+     *payload="addappid(620)\\nsetManifestid(620, \\"123456789\\")\\n";
+     return true;
+   };
+   const auto discovered=playden::sls::ResolveManifest(*source_request,discovery_sources,fetch_fixture);
+   if(!discovered.ok || discovered.source_id!="second" ||
+      discovered.metadata.depots.size()!=1) {
+     StartupError("Added title did not resolve fallback manifest provider");return 8;
+   }
+   simulation.UpdateAddedGameSourceStatus(*source_request,
+     "SLS: "+discovered.source_id+" · Metadata found · Steam download access unverified");
+   const auto status_row=std::find_if(simulation.view().rows.begin(),simulation.view().rows.end(),
+     [](const auto& row){return row.key=="added-discover-620";});
+   if(status_row==simulation.view().rows.end() ||
+      status_row->subtitle.find("Metadata found")==std::string::npos) {
+     StartupError("SLS discovery result not visible for registered game");return 8;
+   }
+   const auto handoff=playden::sls::ResolveInstallMetadata(*source_request,
+      discovery_sources,fetch_fixture,{});
+   if(handoff.status=="matched" || !handoff.depots.empty()) {
+     StartupError("Store/SLS registration incorrectly authorized a download");return 8;
+   }
+   Log("Steam catalog -> Add Game -> SLS discovery -> installer authorization boundary passed");
    {
      playden::homebrew::Simulation reader(options.fixtures,{},playden::homebrew::ModelMode::Simulation);
      reader.SetSlsSourcePreferencePath(added_test_dir/"sources.ini");
@@ -1029,6 +1068,10 @@ int main(int argc,char** argv){
        }
      }
 #endif
+     if(auto app=simulation.TakeAddedGameSourceRequest()) {
+       simulation.UpdateAddedGameSourceStatus(*app,
+         "Fixture only · Native remote SLS discovery not connected in preview");
+     }
      simulation.tick();
      renderer.draw(simulation,options.width,options.height,
          std::clamp(dt,0.001f,0.1f));
