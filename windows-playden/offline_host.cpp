@@ -307,7 +307,9 @@ int main(int argc,char** argv){
      {"second","Second","https://second.example/{appid}.lua",true}};
    const auto fetch_fixture=[](const std::string& url,std::string* payload,std::string*) {
      if(url.find("first.example")!=std::string::npos)return false;
-     *payload="addappid(620)\\nsetManifestid(620, \\"123456789\\")\\n";
+     *payload=R"(addappid(620)
+setManifestid(620, "123456789")
+)";
      return true;
    };
    const auto discovered=playden::sls::ResolveManifest(*source_request,discovery_sources,fetch_fixture);
