@@ -677,7 +677,7 @@ int main(int argc, char** argv) {
     // Shared public catalog/SLS discovery also runs in the native host.
     // Search and manifest metadata are not entitlements or download commands.
     std::unique_ptr<playden::sls::SteamCatalogWorker> discovery;
-    if (!options->simulation && options->network_opt_in)
+    if (!options->simulation)
         discovery = std::make_unique<playden::sls::SteamCatalogWorker>(PLAYDEN_HOMEBREW_CA_BUNDLE);
     if (!options->capture.empty() && options->recording.empty()) {
         // Settle presentation motion without advancing the manual fixture clock.
