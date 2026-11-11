@@ -858,34 +858,18 @@ void Simulation::UpdateAddedGameSourceStatus(std::uint32_t app_id,std::string st
     rebuild_view();
 }
 
+void Simulation::UpdateAddedGameDiscovery(std::uint32_t app_id,const sls::Resolution& result) {
+    if(!manually_added_games_.count(app_id))return;
+    if(result.ok && added_game_registry_.ApplyDiscovery(app_id,result.source_id,result.metadata)){
+        SaveAddedGames();
+        UpdateAddedGameSourceStatus(app_id,
+            "SLS: "+result.source_id+" · "+std::to_string(result.metadata.depots.size())+
+            " depot records · Metadata only, authorization unverified");
+    } else UpdateAddedGameSourceStatus(app_id,"No usable SLS manifest · Check providers or retry");
+}
 void Simulation::SaveAddedGames() const {
     if(sls_source_preference_path_.empty())return;
-    const auto target=sls_source_preference_path_.parent_path()/"added-games.txt";
-    std::error_code ec;
-    std::filesystem::create_directories(target.parent_path(),ec);
-    if(ec)return;
-    const auto temp=std::filesystem::path(target.string()+".tmp");
-    {
-        std::ofstream out(temp,std::ios::trunc);
-        if(!out)return;
-        for(const auto& [id,name]:manually_added_games_)out<<id<<" "<<std::quoted(name)<<"\n";
-        out.flush();
-        if(!out)return;
-    }
-    std::filesystem::rename(temp,target,ec);
-    if(ec) {
-        // Publish safely on platforms where rename cannot replace an existing file.
-        const auto backup=std::filesystem::path(target.string()+".bak");
-        std::error_code ignored;
-        std::filesystem::remove(backup,ignored);
-        ec.clear();
-        if(std::filesystem::exists(target,ignored))
-            std::filesystem::rename(target,backup,ec);
-        if(!ec)std::filesystem::rename(temp,target,ec);
-        if(ec && std::filesystem::exists(backup,ignored))
-            std::filesystem::rename(backup,target,ignored);
-        if(!ec)std::filesystem::remove(backup,ignored);
-    }
+    (void)added_game_registry_.Save(sls_source_preference_path_.parent_path());
 }
 
 void Simulation::SetFixListings(std::uint32_t app_id, sls::FixDiscoveryResult result) {
@@ -911,15 +895,11 @@ void Simulation::SetVerifiedGameFixes(
 void Simulation::SetSlsSourcePreferencePath(std::filesystem::path path) {
     sls_source_preference_path_=std::move(path);
     manually_added_games_.clear();
-    if(!sls_source_preference_path_.empty()) {
-        std::ifstream in(sls_source_preference_path_.parent_path()/"added-games.txt");
-        std::uint64_t app_id=0;
-        std::string name;
-        while(in>>app_id>>std::quoted(name)) {
-            if(app_id>0 && app_id<=std::numeric_limits<std::uint32_t>::max() &&
-               !name.empty() && name.size()<=256 && manually_added_games_.size()<10000)
-                manually_added_games_[static_cast<std::uint32_t>(app_id)]=name;
-        }
+    added_game_registry_=sls::AddedGameRegistry{};
+    if(!sls_source_preference_path_.empty() &&
+       added_game_registry_.Load(sls_source_preference_path_.parent_path())){
+        for(const auto& [app,record]:added_game_registry_.entries())
+            manually_added_games_[app]=record.title;
     }
     if(!sls_source_preference_path_.empty()) {
         std::ifstream in(sls_source_preference_path_.parent_path()/"badge-options.txt");
@@ -4906,6 +4886,8 @@ void Simulation::rebuild_view() {
             }
             auto& added=row("added-game-"+std::to_string(app_id),RowKind::Action,name,"added-game-info");
             added.subtitle="Steam App ID "+std::to_string(app_id)+" · Registered only · Not installed";
+            if(const auto* record=added_game_registry_.Find(app_id);record && !record->source_id.empty())
+                added.subtitle+=" · SLS "+record->source_id;
             if(state_.badge_enabled[1])added.badge="ADDED";
             auto& status=row("added-status-"+std::to_string(app_id),RowKind::Action,
                 "Preparation and fixes · "+name,"added-game-status");
@@ -6953,6 +6935,7 @@ void Simulation::activate() {
                 if(remove) {
                     added_source_status_.erase(hit->first);
                     if(pending_added_source_request_==hit->first) pending_added_source_request_.reset();
+                    added_game_registry_.Erase(hit->first);
                     manually_added_games_.erase(hit);
                     SaveAddedGames();
                     push_notice({"added-game-removed","Manual Lua Den registration removed; Steam ownership was unchanged.","",false,0,true});
@@ -6969,8 +6952,12 @@ void Simulation::activate() {
             const auto hit=std::find_if(catalog_search_results_.titles.begin(),catalog_search_results_.titles.end(),
                 [&](const sls::SteamCatalogTitle& t){return std::to_string(t.app_id)==value;});
             if(hit!=catalog_search_results_.titles.end()) {
-                manually_added_games_[hit->app_id]=hit->name;
-                SaveAddedGames();
+                if(!added_game_registry_.Upsert(hit->app_id,hit->name)) {
+                    push_notice({"added-game-failed","Unable to register this public catalog entry.","",false,0,true});
+                } else {
+                    manually_added_games_[hit->app_id]=hit->name;
+                    SaveAddedGames();
+                }
                 push_notice({"added-game-saved",hit->name+" added to Lua Den. This does not grant a Steam license or install game files.","",false,0,true});
             }
         }
