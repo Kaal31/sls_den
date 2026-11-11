@@ -1,4 +1,5 @@
 #include "sls/steam_catalog_worker.h"
+#include "sls/zip_inflate.h"
 #include <utility>
 #include <chrono>
 #include <algorithm>
@@ -58,6 +59,9 @@ void SteamCatalogWorker::Run(){
           if(!response.ok() || response.status_code!=200 || response.body.empty())return false;
           payload->assign(response.body.begin(),response.body.end());
           return true;
+        },
+        [](std::string_view zip,std::uint32_t app,std::string* manifest,std::string* error) {
+          return DecodeZipManifest(zip,app,manifest,error,InflateZipRaw);
         });
       std::lock_guard<std::mutex> guard(mutex_);
       if(!stop_ && !discovery_queued_)discovery_ready_=std::move(outcome);
