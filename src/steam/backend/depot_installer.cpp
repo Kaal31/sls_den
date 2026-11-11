@@ -220,7 +220,8 @@ bool ListEntries(const std::string& path,std::vector<std::string>& names) {
   if(ec)return false;
   for(;it!=end;it.increment(ec)) {
     if(ec)return false;
-    names.push_back(it->path().filename().u8string());
+    const auto utf8=it->path().filename().u8string();
+    names.emplace_back(utf8.begin(),utf8.end());
   }
   return !ec;
 }
@@ -235,7 +236,10 @@ bool RemoveTree(const std::string& path,int* error=nullptr) {
   std::vector<std::string> names;
   if(!ListEntries(path,names))return false;
   bool ok=true;
-  for(const auto& name:names)ok=RemoveTree((target/std::filesystem::u8path(name)).u8string(),error)&&ok;
+  for(const auto& name:names) {
+    const auto child=(target/std::filesystem::u8path(name)).u8string();
+    ok=RemoveTree(std::string(child.begin(),child.end()),error)&&ok;
+  }
   if(!std::filesystem::remove(target,ec)||ec)ok=false;
   if(ec&&error&&!*error)*error=static_cast<int>(ec.value());
   return ok;
