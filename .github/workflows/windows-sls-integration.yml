@@ -26,6 +26,8 @@ jobs:
             & clang-cl /nologo /std:c++20 /EHsc /I src "tests/${case}_test.cpp" $sources /Fe:"build/windows-sls/${case}.exe"
             if ($LASTEXITCODE -ne 0) { throw "Compilation failed: $case" }
           }
+          & clang-cl /nologo /std:c++20 /EHsc /I src /I third_party/stb tests/sls_zip_inflate_test.cpp src/sls/zip_inflate.cpp $sources /Fe:build/windows-sls/sls_zip_inflate.exe
+          if ($LASTEXITCODE -ne 0) { throw "Compilation failed: sls_zip_inflate" }
       - name: Verify fallback, ownership boundaries and source configuration
         shell: pwsh
         run: |
@@ -34,3 +36,5 @@ jobs:
             & "./build/windows-sls/${case}.exe"
             if ($LASTEXITCODE -ne 0) { throw "Integration test failed: $case" }
           }
+          & "./build/windows-sls/sls_zip_inflate.exe"
+          if ($LASTEXITCODE -ne 0) { throw "Integration test failed: sls_zip_inflate" }
