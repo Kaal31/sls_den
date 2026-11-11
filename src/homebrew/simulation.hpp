@@ -11,6 +11,7 @@
 #include "sls/game_fix_service.h"
 #include "sls/fix_source_discovery.h"
 #include "sls/steam_catalog_search.h"
+#include "sls/added_game_registry.h"
 
 #include <array>
 #include <cstdint>
@@ -740,6 +741,7 @@ public:
     [[nodiscard]] std::optional<std::uint32_t> TakeAddedGameSourceRequest();
     [[nodiscard]] const sls::ProviderSelection& SelectedSlsSources() const noexcept { return sls_sources_; }
     void UpdateAddedGameSourceStatus(std::uint32_t app_id, std::string status);
+    void UpdateAddedGameDiscovery(std::uint32_t app_id,const sls::Resolution& resolution);
     void SetDenuvoKnown(std::set<std::uint32_t> appids);
     void SetProtonDbRatings(std::map<std::uint32_t,std::string> ratings);
     bool scenario(const std::string& name);
@@ -919,7 +921,8 @@ private:
     std::string catalog_search_status_;
     std::string catalog_search_query_;
     sls::SteamCatalogPage catalog_search_results_;
-    std::map<std::uint32_t,std::string> manually_added_games_;
+    std::map<std::uint32_t,std::string> manually_added_games_; // UI projection of the registry
+    sls::AddedGameRegistry added_game_registry_;
     std::optional<std::uint32_t> pending_added_source_request_;
     std::map<std::uint32_t,std::string> added_source_status_;
     void SaveAddedGames() const;
