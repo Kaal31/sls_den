@@ -33,7 +33,7 @@ int main() {
   // Malformed and out-of-range app IDs cannot become installable catalog
   // entries. A failed parse must preserve the last successfully loaded page.
   assert(ParseSteamStoreSearchResponse(
-    R"({"total_count":999999999,"results_html":"<a data-ds-appid=\\"0\\"><span class=\\"title\\">Zero</span></a><a data-ds-appid=\\"4294967296\\"><span class=\\"title\\">Overflow</span></a><a data-ds-appid=\\"42\\"><span class=\\"title\\">Valid &amp; Safe</span></a>"})",
+    R"({"total_count":999999999,"results_html":"<a data-ds-appid=\"0\"><span class=\"title\">Zero</span></a><a data-ds-appid=\"4294967296\"><span class=\"title\">Overflow</span></a><a data-ds-appid=\"42\"><span class=\"title\">Valid &amp; Safe</span></a>"})",
     &page));
   assert(page.total==1000000 && page.titles.size()==1);
   assert(page.titles[0].app_id==42 && page.titles[0].name=="Valid & Safe");
