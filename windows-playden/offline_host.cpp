@@ -287,6 +287,7 @@ int main(int argc,char** argv){
    std::error_code added_error;
    fs::create_directories(added_test_dir,added_error);
    fs::remove(added_test_dir/"added-games.txt",added_error);
+   fs::remove(added_test_dir/"added-games-v2.txt",added_error);
    simulation.SetSlsSourcePreferencePath(added_test_dir/"sources.ini");
    if(!simulation.action("focus:steam-catalog-add-620") || !simulation.action("cross")) {
      StartupError("Public result Add Game action failed");return 8;
@@ -317,12 +318,11 @@ setManifestid(620, "123456789")
       discovered.metadata.depots.size()!=1) {
      StartupError("Added title did not resolve fallback manifest provider");return 8;
    }
-   simulation.UpdateAddedGameSourceStatus(*source_request,
-     "SLS: "+discovered.source_id+" · Metadata found · Steam download access unverified");
+   simulation.UpdateAddedGameDiscovery(*source_request,discovered);
    const auto status_row=std::find_if(simulation.view().rows.begin(),simulation.view().rows.end(),
      [](const auto& row){return row.key=="added-discover-620";});
    if(status_row==simulation.view().rows.end() ||
-      status_row->subtitle.find("Metadata found")==std::string::npos) {
+      status_row->subtitle.find("depot records")==std::string::npos) {
      StartupError("SLS discovery result not visible for registered game");return 8;
    }
    const auto handoff=playden::sls::ResolveInstallMetadata(*source_request,
@@ -1082,10 +1082,7 @@ setManifestid(620, "123456789")
 #ifdef PLAYDEN_WINDOWS_PUBLIC_CATALOG
      if(catalog_worker) {
        if(auto outcome=catalog_worker->PollDiscovery()) {
-         simulation.UpdateAddedGameSourceStatus(outcome->app_id,
-           outcome->resolution.ok ?
-             ("SLS: "+outcome->resolution.source_id+" · Metadata found · Download authorization unverified") :
-             "No usable SLS manifest · Check providers or retry");
+         simulation.UpdateAddedGameDiscovery(outcome->app_id,outcome->resolution);
        }
      }
 #endif
