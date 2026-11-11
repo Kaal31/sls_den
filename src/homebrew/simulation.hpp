@@ -737,6 +737,8 @@ public:
     [[nodiscard]] std::optional<std::string> TakeSteamCatalogSearchRequest();
     void UpdateSteamCatalogResults(std::string query,sls::SteamCatalogPage page);
     void FailSteamCatalogSearch(std::string query);
+    [[nodiscard]] std::optional<std::uint32_t> TakeAddedGameSourceRequest();
+    void UpdateAddedGameSourceStatus(std::uint32_t app_id, std::string status);
     void SetDenuvoKnown(std::set<std::uint32_t> appids);
     void SetProtonDbRatings(std::map<std::uint32_t,std::string> ratings);
     bool scenario(const std::string& name);
@@ -917,6 +919,8 @@ private:
     std::string catalog_search_query_;
     sls::SteamCatalogPage catalog_search_results_;
     std::map<std::uint32_t,std::string> manually_added_games_;
+    std::optional<std::uint32_t> pending_added_source_request_;
+    std::map<std::uint32_t,std::string> added_source_status_;
     void SaveAddedGames() const;
     std::set<std::uint32_t> denuvo_known_;
     std::map<std::uint32_t,std::string> protondb_ratings_;
