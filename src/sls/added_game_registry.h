@@ -55,19 +55,19 @@ public:
     std::error_code ec;
     std::filesystem::create_directories(root,ec);
     if(ec)return false;
-    const auto target=root/"added-games-v2.txt";
-    const auto temp=root/"added-games-v2.tmp";
+    const auto target=root/"added-games-v3.txt";
+    const auto temp=root/"added-games-v3.tmp";
     {
       std::ofstream out(temp,std::ios::binary|std::ios::trunc);
       if(!out)return false;
-      out<<"SLS-ADDED-GAMES 2\n";
+      out<<"SLS-ADDED-GAMES 3\n";
       for(const auto& [app,record]:entries_){
         out<<app<<' '<<std::quoted(record.title)<<' '
            <<std::quoted(record.source_id)<<' '
            <<record.metadata.depots.size()<<'\n';
         for(const auto& depot:record.metadata.depots)
           out<<depot.depot_id<<' '<<depot.manifest_gid<<' '
-             <<(depot.enabled?1:0)<<'\n';
+             <<(depot.enabled?1:0)<<' '<<depot.declared_manifest_bytes<<'\n';
       }
       out.flush();
       if(!out)return false;
@@ -75,7 +75,7 @@ public:
     std::filesystem::rename(temp,target,ec);
     if(!ec)return true;
     // Windows may refuse replacement. Preserve the original if publication fails.
-    const auto backup=root/"added-games-v2.bak";
+    const auto backup=root/"added-games-v3.bak";
     std::error_code ignored;
     std::filesystem::remove(backup,ignored);
     ec.clear();
@@ -89,7 +89,9 @@ public:
   bool Load(const std::filesystem::path& root) {
     if(root.empty())return false;
     std::map<std::uint32_t,AddedGameRecord> parsed;
-    std::ifstream in(root/"added-games-v2.txt",std::ios::binary);
+    std::ifstream in(root/"added-games-v3.txt",std::ios::binary);
+    bool v3=static_cast<bool>(in);
+    if(!in)in.open(root/"added-games-v2.txt",std::ios::binary);
     if(!in) {
       // One-time migration of the old catalog-only registration format.
       std::ifstream legacy(root/"added-games.txt",std::ios::binary);
@@ -111,7 +113,8 @@ public:
       return true;
     }
     std::string header;
-    if(!std::getline(in,header) || header!="SLS-ADDED-GAMES 2")return false;
+    if(!std::getline(in,header) ||
+       header!=(v3?"SLS-ADDED-GAMES 3":"SLS-ADDED-GAMES 2"))return false;
     while(true) {
       in>>std::ws;
       if(in.eof())break;
@@ -128,11 +131,14 @@ public:
       for(std::size_t i=0;i<count;++i){
         std::uint64_t depot_id=0,gid=0;
         int enabled=0;
+        std::uint64_t declared_bytes=0;
         if(!(in>>depot_id>>gid>>enabled) || !depot_id || depot_id>UINT32_MAX ||
-           (enabled!=0 && enabled!=1))return false;
+           (enabled!=0 && enabled!=1) ||
+           (v3 && (!(in>>declared_bytes) || declared_bytes>1024*1024)))return false;
         for(const auto& prior:entry.metadata.depots)
           if(prior.depot_id==depot_id)return false;
-        entry.metadata.depots.push_back({static_cast<std::uint32_t>(depot_id),gid,enabled!=0});
+        entry.metadata.depots.push_back({static_cast<std::uint32_t>(depot_id),gid,
+                                         enabled!=0,declared_bytes});
       }
       parsed.emplace(entry.app_id,std::move(entry));
     }
