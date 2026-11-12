@@ -44,7 +44,10 @@ int main(){
   // Existing version-2 records remain readable and upgrade on next save.
   std::filesystem::remove(root/"added-games-v3.txt",ec);
   {std::ofstream old(root/"added-games-v2.txt");
-   old<<"SLS-ADDED-GAMES 2\\n620 \\"Portal 2\\" \\"legacy-provider\\" 1\\n621 123456 1\\n";}
+   old<<R"(SLS-ADDED-GAMES 2
+620 "Portal 2" "legacy-provider" 1
+621 123456 1
+)";}
   AddedGameRegistry migrated;
   Check(migrated.Load(root) && migrated.Find(620) &&
         migrated.Find(620)->metadata.depots[0].declared_manifest_bytes==0 &&
