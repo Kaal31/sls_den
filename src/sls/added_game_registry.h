@@ -91,7 +91,7 @@ public:
     std::map<std::uint32_t,AddedGameRecord> parsed;
     std::ifstream in(root/"added-games-v3.txt",std::ios::binary);
     bool v3=static_cast<bool>(in);
-    if(!in)in.open(root/"added-games-v2.txt",std::ios::binary);
+    if(!in) { in.clear(); in.open(root/"added-games-v2.txt",std::ios::binary); }
     if(!in) {
       // One-time migration of the old catalog-only registration format.
       std::ifstream legacy(root/"added-games.txt",std::ios::binary);
