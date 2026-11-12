@@ -12,6 +12,7 @@
 #include "sls/fix_source_discovery.h"
 #include "sls/steam_catalog_search.h"
 #include "sls/added_game_registry.h"
+#include "sls/source_resolver.h"
 
 #include <array>
 #include <cstdint>
