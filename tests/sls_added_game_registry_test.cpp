@@ -20,7 +20,7 @@ int main(){
         "upsert without creating steam license");
   ManifestMetadata metadata;
   metadata.app_id=620;
-  metadata.depots={{621,123456,true},{622,0,false}};
+  metadata.depots={{621,123456,true,4096},{622,0,false,0}};
   Check(registry.ApplyDiscovery(620,"sushi",metadata),"provider metadata registration");
   Check(registry.Save(root),"atomic versioned persistence");
   AddedGameRegistry restored;
@@ -28,7 +28,8 @@ int main(){
         restored.Find(620)->source_id=="sushi" &&
         restored.Find(620)->metadata.depots.size()==2 &&
         restored.Find(620)->metadata.depots[0].manifest_gid==123456 &&
-        restored.Find(620)->metadata.depots[1].manifest_gid==0,
+        restored.Find(620)->metadata.depots[1].manifest_gid==0 &&
+        restored.Find(620)->metadata.depots[0].declared_manifest_bytes==4096,
         "restart restores exact discovery provenance and depot IDs");
   Check(!restored.ApplyDiscovery(620,"spoof",ManifestMetadata{999,{{621,7,true}}}),
         "cross-app metadata rejected");
@@ -36,10 +37,20 @@ int main(){
   AddedGameRegistry after_removal;
   Check(after_removal.Load(root)&&!after_removal.Find(620)&&after_removal.Find(730),
         "unregistered game does not reappear from legacy file");
-  {std::ofstream corrupt(root/"added-games-v2.txt",std::ios::trunc);
-   corrupt<<"SLS-ADDED-GAMES 2\n620 \"Portal 2\" \"sushi\" 1\nnot-a-depot\n";}
+  {std::ofstream corrupt(root/"added-games-v3.txt",std::ios::trunc);
+   corrupt<<"SLS-ADDED-GAMES 3\n620 \"Portal 2\" \"sushi\" 1\nnot-a-depot\n";}
   Check(!after_removal.Load(root)&&!after_removal.Find(620)&&after_removal.Find(730),
         "malformed registry refuses partial mutation");
+  // Existing version-2 records remain readable and upgrade on next save.
+  std::filesystem::remove(root/"added-games-v3.txt",ec);
+  {std::ofstream old(root/"added-games-v2.txt");
+   old<<"SLS-ADDED-GAMES 2\\n620 \\"Portal 2\\" \\"legacy-provider\\" 1\\n621 123456 1\\n";}
+  AddedGameRegistry migrated;
+  Check(migrated.Load(root) && migrated.Find(620) &&
+        migrated.Find(620)->metadata.depots[0].declared_manifest_bytes==0 &&
+        migrated.Save(root) &&
+        std::filesystem::exists(root/"added-games-v3.txt"),
+        "version-2 registry upgrades without losing depot metadata");
   std::filesystem::remove_all(root,ec);
   std::cout<<"PASS: added-game migration, provenance, persistence and isolation\n";
 }
