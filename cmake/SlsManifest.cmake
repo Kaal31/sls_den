@@ -3,6 +3,9 @@ target_sources(sls_manifest PRIVATE "${CMAKE_SOURCE_DIR}/src/sls/source_catalog.
 target_sources(sls_manifest PRIVATE "${CMAKE_SOURCE_DIR}/src/sls/source_list.cpp" "${CMAKE_SOURCE_DIR}/src/sls/steam_catalog_search.cpp")
 target_include_directories(sls_manifest PUBLIC "${CMAKE_SOURCE_DIR}/src")
 target_compile_features(sls_manifest PUBLIC cxx_std_17)
+# Steam catalog response parsing uses the shared JSON implementation.
+# Propagate it to every consumer of sls_manifest, including offline fixtures.
+target_link_libraries(sls_manifest PUBLIC playden_steam_protocol)
 target_link_libraries(playden_preferences PUBLIC sls_manifest)
 if(PLAYDEN_PLATFORM_PS5)
   target_compile_options(sls_manifest PRIVATE -fno-exceptions -fno-rtti)
