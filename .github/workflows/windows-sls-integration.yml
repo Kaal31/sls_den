@@ -1,7 +1,7 @@
 name: Windows SLS Integration Tests
 on:
   push:
-    branches: [windows-preview]
+    branches: [windows-preview, windows-preview-test]
     paths:
       - 'src/sls/**'
       - 'tests/sls_*'
@@ -13,28 +13,62 @@ permissions:
 jobs:
   fixture-integration:
     runs-on: windows-2022
-    timeout-minutes: 15
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: ilammy/msvc-dev-cmd@v1
-      - name: Compile native Windows SLS metadata integration tests
+      - name: Build and run independent fixtures
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Force build/windows-sls | Out-Null
+          $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $false
+          $dir = 'build/windows-sls'
+          New-Item -ItemType Directory -Force $dir | Out-Null
           $sources = @('src/sls/manifest_metadata.cpp', 'src/sls/source_catalog.cpp', 'src/sls/source_resolver.cpp', 'src/sls/source_list.cpp', 'src/steam/backend/json.cpp', 'src/sls/config_fix.cpp', 'src/sls/steam_catalog_search.cpp')
-          foreach ($case in @('sls_config_fix', 'sls_windows_integration', 'sls_install_metadata', 'sls_source_resolver', 'sls_luatools_auth', 'sls_authorized_depot_plan', 'sls_source_list', 'sls_manifest_metadata', 'sls_install_job_queue', 'sls_added_game_registry')) {
-            & clang-cl /nologo /std:c++20 /EHsc /I src "tests/${case}_test.cpp" $sources /Fe:"build/windows-sls/${case}.exe"
-            if ($LASTEXITCODE -ne 0) { throw "Compilation failed: $case" }
+          $cases = @('sls_config_fix', 'sls_windows_integration', 'sls_install_metadata', 'sls_source_resolver', 'sls_luatools_auth', 'sls_authorized_depot_plan', 'sls_source_list', 'sls_manifest_metadata', 'sls_install_job_queue', 'sls_added_game_registry', 'sls_zip_inflate')
+          $objects = @()
+          $sharedFailed = $false
+          foreach ($source in $sources) {
+            $obj = "$dir/$([IO.Path]::GetFileNameWithoutExtension($source)).obj"
+            & clang-cl /nologo /std:c++20 /EHsc /I src /c $source /Fo:$obj 2>&1 | Tee-Object "$obj.log"
+            if ($LASTEXITCODE -ne 0) { $sharedFailed = $true } else { $objects += $obj }
           }
-          & clang-cl /nologo /std:c++20 /EHsc /I src /I third_party/stb tests/sls_zip_inflate_test.cpp src/sls/zip_inflate.cpp $sources /Fe:build/windows-sls/sls_zip_inflate.exe
-          if ($LASTEXITCODE -ne 0) { throw "Compilation failed: sls_zip_inflate" }
-      - name: Verify fallback, ownership boundaries and source configuration
-        shell: pwsh
-        run: |
-          foreach ($case in @('sls_config_fix', 'sls_windows_integration', 'sls_install_metadata', 'sls_source_resolver', 'sls_luatools_auth', 'sls_authorized_depot_plan', 'sls_source_list', 'sls_manifest_metadata', 'sls_install_job_queue', 'sls_added_game_registry')) {
-            Write-Host "Testing $case"
-            & "./build/windows-sls/${case}.exe"
-            if ($LASTEXITCODE -ne 0) { throw "Integration test failed: $case" }
+          $results = @()
+          foreach ($case in $cases) {
+            $status = 'BUILD_FAILED'
+            try {
+              $inputs = @("tests/${case}_test.cpp")
+              if ($case -eq 'sls_zip_inflate') { $inputs += 'src/sls/zip_inflate.cpp' }
+              if ($sharedFailed) { $inputs += $sources } else { $inputs += $objects }
+              & clang-cl /nologo /std:c++20 /EHsc /I src /I third_party/stb @inputs /Fe:"$dir/$case.exe" 2>&1 | Tee-Object "$dir/$case.compile.log"
+              if ($LASTEXITCODE -eq 0) {
+                $status = 'RUN_FAILED'
+                $p = Start-Process -FilePath (Resolve-Path "$dir/$case.exe").Path -PassThru -NoNewWindow -RedirectStandardOutput "$dir/$case.stdout.log" -RedirectStandardError "$dir/$case.stderr.log"
+                if (-not $p.WaitForExit(90000)) {
+                  Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
+                  $status = 'TIMEOUT'
+                } else {
+                  $p.WaitForExit()
+                  if ($p.ExitCode -eq 0) { $status = 'PASS' } else { $status = "FAIL ($($p.ExitCode))" }
+                }
+                Get-Content "$dir/$case.stdout.log", "$dir/$case.stderr.log"
+              }
+            } catch {
+              $_ | Out-String | Add-Content "$dir/$case.error.log"
+            }
+            $results += [pscustomobject]@{ Test = $case; Result = $status }
           }
-          & "./build/windows-sls/sls_zip_inflate.exe"
-          if ($LASTEXITCODE -ne 0) { throw "Integration test failed: sls_zip_inflate" }
+          $results | ConvertTo-Json | Set-Content "$dir/results.json"
+          $results | Format-Table | Out-String | Tee-Object "$dir/summary.log"
+          '## SLS fixture results' | Add-Content $env:GITHUB_STEP_SUMMARY
+          '| Test | Result |' | Add-Content $env:GITHUB_STEP_SUMMARY
+          '| --- | --- |' | Add-Content $env:GITHUB_STEP_SUMMARY
+          foreach ($r in $results) { "| $($r.Test) | $($r.Result) |" | Add-Content $env:GITHUB_STEP_SUMMARY }
+          if ($sharedFailed -or @($results | Where-Object Result -ne PASS).Count -gt 0) { throw 'One or more fixture builds or tests failed' }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: windows-sls-test-logs
+          path: |
+            build/windows-sls/*.log
+            build/windows-sls/results.json
